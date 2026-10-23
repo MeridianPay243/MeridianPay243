@@ -343,16 +343,38 @@ async function verifyAndSendTestEmail(state, recipientEmail) {
   const to = (recipientEmail || user).trim();
 
   const html = `
-  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;overflow:hidden;color:#0F172A">
-    ${buildCompanyLogoHeader(brandName, 'GMAIL SMTP VERIFIED')}
-    <div style="padding:26px 28px">
-      <h2 style="margin:0 0 10px;font-size:20px;color:#0A1220">Your ${brandName} Email Notifications Are Live</h2>
-      <p style="margin:0 0 16px;font-size:14px;color:#475467;line-height:1.6">
-        This message confirms that your <strong>${brandName}</strong> portal is connected to Gmail SMTP (<code>${host}:${port}</code>) using <strong>${fromEmail}</strong>.
-        Every customer email automatically displays <strong>${brandName}</strong> and your company logo.
-      </p>
-    </div>
-  </div>`;
+  <table style="width:100%;border-collapse:collapse;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;overflow:hidden">
+    <tr>
+      <td style="background:linear-gradient(135deg,#0A1220 0%,#111C33 100%);padding:22px 24px;border-bottom:3px solid #0B8F63">
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="width:44px;vertical-align:middle">
+              <table style="border-collapse:collapse">
+                <tr>
+                  <td style="width:44px;height:44px;background:#0B8F63;border-radius:10px;text-align:center;vertical-align:middle">
+                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:22px;font-weight:900;color:#FFFFFF;line-height:44px">M</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td style="padding-left:12px;vertical-align:middle">
+              <div style="font-size:17px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;line-height:1.15">${brandName}</div>
+              <div style="font-size:10px;font-weight:600;color:#6EE7B7;letter-spacing:0.06em;text-transform:uppercase;margin-top:2px">Commercial ACH &amp; Treasury</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:26px 28px">
+        <h2 style="margin:0 0 10px;font-size:20px;color:#0A1220">Your ${brandName} Email Notifications Are Live</h2>
+        <p style="margin:0 0 16px;font-size:14px;color:#475467;line-height:1.6">
+          This message confirms that your <strong>${brandName}</strong> portal is connected to Gmail SMTP (<code>${host}:${port}</code>) using <strong>${fromEmail}</strong>.
+          Every customer email automatically displays <strong>${brandName}</strong> and your company logo.
+        </p>
+      </td>
+    </tr>
+  </table>`;
 
   return await sendCustomerEmail(state, {
     to,
@@ -363,63 +385,67 @@ async function verifyAndSendTestEmail(state, recipientEmail) {
   });
 }
 
-// Slick Executive Company Logo Header (100% compatible with Outlook/Hotmail, Gmail, Apple Mail, and Web)
+// Slick Executive Company Logo Header (mobile-responsive, Outlook/Hotmail/Gmail/Apple Mail compatible)
 function buildCompanyLogoHeader(brandName, badgeText) {
   return `
-  <div style="background:linear-gradient(135deg,#0A1220 0%,#111C33 100%);padding:22px 28px;border-bottom:3px solid #0B8F63">
-    <table style="width:100%;border-collapse:collapse">
-      <tr>
-        <td style="vertical-align:middle">
-          <table style="border-collapse:collapse">
-            <tr>
-              <td style="width:40px;height:40px;background:#0B8F63;border-radius:10px;text-align:center;vertical-align:middle;box-shadow:0 4px 12px rgba(11,143,99,0.4)">
-                <span style="display:inline-block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:20px;font-weight:900;color:#FFFFFF;line-height:40px;letter-spacing:-0.03em">M</span>
-              </td>
-              <td style="padding-left:12px;vertical-align:middle">
-                <div style="font-size:17px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;line-height:1.15">${brandName}</div>
-                <div style="font-size:11px;font-weight:600;color:#6EE7B7;letter-spacing:0.06em;text-transform:uppercase;margin-top:2px">Commercial ACH &amp; Treasury</div>
-              </td>
-            </tr>
-          </table>
-        </td>
-        <td style="text-align:right;vertical-align:middle">
-          <span style="display:inline-block;font-size:10.5px;font-weight:700;color:#D1FAE5;background:rgba(11,143,99,0.28);border:1px solid rgba(110,231,183,0.35);padding:5px 11px;border-radius:999px;letter-spacing:0.04em;text-transform:uppercase">${badgeText}</span>
-        </td>
-      </tr>
-    </table>
-  </div>`;
+  <table style="width:100%;border-collapse:collapse">
+    <tr>
+      <td style="background:linear-gradient(135deg,#0A1220 0%,#111C33 100%);padding:22px 24px;border-bottom:3px solid #0B8F63">
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="vertical-align:middle;width:44px">
+              <table style="border-collapse:collapse">
+                <tr>
+                  <td style="width:44px;height:44px;background:#0B8F63;border-radius:10px;text-align:center;vertical-align:middle;box-shadow:0 4px 12px rgba(11,143,99,0.4)">
+                    <span style="display:inline-block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:22px;font-weight:900;color:#FFFFFF;line-height:44px;letter-spacing:-0.03em">M</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td style="padding-left:12px;vertical-align:middle">
+              <div style="font-size:17px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;line-height:1.15">${brandName}</div>
+              <div style="font-size:10px;font-weight:600;color:#6EE7B7;letter-spacing:0.06em;text-transform:uppercase;margin-top:2px">Commercial ACH &amp; Treasury</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>`;
 }
 
-// Slick Executive Memo Block carrying the Company Logo
+// Slick Executive Memo Block carrying the Company Logo (mobile-responsive)
 function buildCompanyMemoCard(brandName, memo) {
   if (!memo) return '';
   return `
-  <div style="margin:0 0 22px;border:1px solid #CBD5E1;border-left:4px solid #0B8F63;border-radius:12px;background:#F8FAFC;overflow:hidden;box-shadow:0 2px 8px rgba(15,23,42,0.04)">
-    <div style="padding:11px 16px;background:#F1F5F9;border-bottom:1px solid #E2E8F0">
-      <table style="width:100%;border-collapse:collapse">
-        <tr>
-          <td style="vertical-align:middle">
-            <table style="border-collapse:collapse">
-              <tr>
-                <td style="width:22px;height:22px;background:#0B8F63;border-radius:6px;text-align:center;vertical-align:middle">
-                  <span style="font-size:12px;font-weight:900;color:#FFFFFF;line-height:22px">M</span>
-                </td>
-                <td style="padding-left:8px;font-size:11.5px;font-weight:700;color:#0A1220;letter-spacing:0.03em;text-transform:uppercase">
-                  Official Memo &middot; ${brandName}
-                </td>
-              </tr>
-            </table>
-          </td>
-          <td style="text-align:right;font-size:11px;color:#64748B;font-weight:600">
-            Verified Dispatch
-          </td>
-        </tr>
-      </table>
-    </div>
-    <div style="padding:16px 18px;font-size:14px;color:#1E293B;line-height:1.65;font-weight:500">
-      ${memo}
-    </div>
-  </div>`;
+  <table style="width:100%;border-collapse:collapse;margin:0 0 22px">
+    <tr>
+      <td style="border:1px solid #CBD5E1;border-left:4px solid #0B8F63;border-radius:12px;background:#F8FAFC;overflow:hidden;box-shadow:0 2px 8px rgba(15,23,42,0.04)">
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="padding:11px 16px;background:#F1F5F9;border-bottom:1px solid #E2E8F0">
+              <table style="width:100%;border-collapse:collapse">
+                <tr>
+                  <td style="width:24px;height:24px;background:#0B8F63;border-radius:6px;text-align:center;vertical-align:middle">
+                    <span style="font-size:12px;font-weight:900;color:#FFFFFF;line-height:24px">M</span>
+                  </td>
+                  <td style="padding-left:8px;font-size:11.5px;font-weight:700;color:#0A1220;letter-spacing:0.03em;text-transform:uppercase">
+                    Official Memo &middot; ${brandName}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="padding:16px 18px;font-size:14px;color:#1E293B;line-height:1.65;font-weight:500">
+              ${memo}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>`;
 }
 
 function emailVerificationInviteTemplate({ brandName, businessName, verifyUrl, memo }) {
@@ -429,54 +455,108 @@ function emailVerificationInviteTemplate({ brandName, businessName, verifyUrl, m
   );
 
   return `
-  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:0 auto;border:1px solid #E2E8F0;border-radius:16px;background:#FFFFFF;color:#0F172A;overflow:hidden;box-shadow:0 10px 28px -8px rgba(15,23,42,0.08)">
-    ${buildCompanyLogoHeader(brandName, 'BANK VERIFICATION')}
-    <div style="padding:28px">
-      <h2 style="margin:0 0 10px;font-size:21px;font-weight:800;color:#0A1220;letter-spacing:-0.02em">Verify Your Business Bank Account</h2>
-      <p style="margin:0 0 20px;font-size:14px;color:#475467;line-height:1.6">
-        Hello <strong>${businessName}</strong>, you have been invited by <strong>${brandName}</strong> to complete your one-time guest bank verification. You may verify instantly using Online Banking or via Routing &amp; Account Micro-Deposits — no account registration or password is required.
-      </p>
+  <table style="width:100%;border-collapse:collapse;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;overflow:hidden;box-shadow:0 10px 28px -8px rgba(15,23,42,0.08)">
+    <tr>
+      <td>
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="background:linear-gradient(135deg,#0A1220 0%,#111C33 100%);padding:22px 24px;border-bottom:3px solid #0B8F63">
+              <table style="width:100%;border-collapse:collapse">
+                <tr>
+                  <td style="width:44px;vertical-align:middle">
+                    <table style="border-collapse:collapse">
+                      <tr>
+                        <td style="width:44px;height:44px;background:#0B8F63;border-radius:10px;text-align:center;vertical-align:middle">
+                          <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:22px;font-weight:900;color:#FFFFFF;line-height:44px">M</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-left:12px;vertical-align:middle">
+                    <div style="font-size:17px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;line-height:1.15">${brandName}</div>
+                    <div style="font-size:10px;font-weight:600;color:#6EE7B7;letter-spacing:0.06em;text-transform:uppercase;margin-top:2px">Commercial ACH &amp; Treasury</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px">
+        <h2 style="margin:0 0 10px;font-size:21px;font-weight:800;color:#0A1220;letter-spacing:-0.02em">Verify Your Business Bank Account</h2>
+        <p style="margin:0 0 20px;font-size:14px;color:#475467;line-height:1.6">
+          Hello <strong>${businessName}</strong>, you have been invited by <strong>${brandName}</strong> to complete your one-time guest bank verification. You may verify instantly using Online Banking or via Routing &amp; Account Micro-Deposits — no account registration or password is required.
+        </p>
 
-      ${memoCard}
+        ${memoCard}
 
-      <div style="margin:24px 0;text-align:center">
-        <a href="${verifyUrl}" style="display:inline-block;background:#0B8F63;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:14.5px;padding:13px 28px;border-radius:10px;box-shadow:0 4px 12px rgba(11,143,99,0.28)">
-          Verify Bank Account
-        </a>
-      </div>
+        <div style="margin:24px 0;text-align:center">
+          <a href="${verifyUrl}" style="display:block;width:100%;background:#0B8F63;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:15px;padding:14px 0;border-radius:10px;box-shadow:0 4px 12px rgba(11,143,99,0.28);text-align:center">Verify Bank Account</a>
+        </div>
 
-      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;font-size:12px;color:#64748B;line-height:1.5">
-        <strong style="color:#0F172A">Direct Guest Verification Link:</strong><br/>
-        <a href="${verifyUrl}" style="color:#0B8F63;word-break:break-all;text-decoration:none">${verifyUrl}</a>
-      </div>
+        <table style="width:100%;border-collapse:collapse;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;font-size:12px;color:#64748B;line-height:1.5">
+          <tr>
+            <td>
+              <strong style="color:#0F172A">Direct Guest Verification Link:</strong><br/>
+              <a href="${verifyUrl}" style="color:#0B8F63;word-break:break-all;text-decoration:none">${verifyUrl}</a>
+            </td>
+          </tr>
+        </table>
 
-      <div style="margin-top:20px;padding-top:14px;border-top:1px solid #F1F5F9;display:flex;justify-content:space-between;font-size:11.5px;color:#94A3B8">
-        <span>Secured by <strong>${brandName}</strong> &middot; 256-Bit TLS Encrypted</span>
-      </div>
-    </div>
-  </div>`;
+        <table style="width:100%;border-collapse:collapse;margin-top:20px;padding-top:14px;border-top:1px solid #F1F5F9">
+          <tr>
+            <td style="font-size:11.5px;color:#94A3B8">Secured by <strong>${brandName}</strong> &middot; 256-Bit TLS Encrypted</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>`;
 }
 
 function emailBankPendingTemplate({ brandName, businessName, verifyUrl, accountLast4 }) {
   return `
-  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:0 auto;border:1px solid #E2E8F0;border-radius:16px;background:#FFFFFF;color:#0F172A;overflow:hidden">
-    ${buildCompanyLogoHeader(brandName, 'MICRO-DEPOSITS SENT')}
-    <div style="padding:28px">
-      <h2 style="margin:0 0 8px;font-size:20px;color:#0A1220">Confirm Your Two Micro-Deposits</h2>
-      <p style="margin:0 0 18px;font-size:14px;color:#475467;line-height:1.6">
-        Hello <strong>${businessName}</strong>, <strong>${brandName}</strong> has initiated two small micro-deposit credits (each under $1.00) to your bank account ending in <strong>•••• ${accountLast4}</strong>.
-        Once they appear on your bank statement, click below to enter the two amounts and finish verifying your bank account.
-      </p>
-      <div style="margin:22px 0;text-align:center">
-        <a href="${verifyUrl}" style="display:inline-block;background:#0B8F63;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:14px;padding:12px 26px;border-radius:10px">
-          Confirm Micro-Deposits
-        </a>
-      </div>
-      <p style="margin:16px 0 0;font-size:12px;color:#667085;border-top:1px solid #EAECF0;padding-top:14px">
-        Sent by <strong>${brandName}</strong> &middot; Direct link: <a href="${verifyUrl}" style="color:#0B8F63">${verifyUrl}</a>
-      </p>
-    </div>
-  </div>`;
+  <table style="width:100%;border-collapse:collapse;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;overflow:hidden">
+    <tr>
+      <td style="background:linear-gradient(135deg,#0A1220 0%,#111C33 100%);padding:22px 24px;border-bottom:3px solid #0B8F63">
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="width:44px;vertical-align:middle">
+              <table style="border-collapse:collapse">
+                <tr>
+                  <td style="width:44px;height:44px;background:#0B8F63;border-radius:10px;text-align:center;vertical-align:middle">
+                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:22px;font-weight:900;color:#FFFFFF;line-height:44px">M</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td style="padding-left:12px;vertical-align:middle">
+              <div style="font-size:17px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;line-height:1.15">${brandName}</div>
+              <div style="font-size:10px;font-weight:600;color:#6EE7B7;letter-spacing:0.06em;text-transform:uppercase;margin-top:2px">Commercial ACH &amp; Treasury</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px">
+        <h2 style="margin:0 0 8px;font-size:20px;color:#0A1220">Confirm Your Two Micro-Deposits</h2>
+        <p style="margin:0 0 18px;font-size:14px;color:#475467;line-height:1.6">
+          Hello <strong>${businessName}</strong>, <strong>${brandName}</strong> has initiated two small micro-deposit credits (each under $1.00) to your bank account ending in <strong>•••• ${accountLast4}</strong>.
+          Once they appear on your bank statement, click below to enter the two amounts and finish verifying your bank account.
+        </p>
+        <div style="margin:22px 0;text-align:center">
+          <a href="${verifyUrl}" style="display:block;width:100%;background:#0B8F63;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:15px;padding:13px 0;border-radius:10px;text-align:center">Confirm Micro-Deposits</a>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;color:#667085">
+          <tr>
+            <td style="padding-top:14px;border-top:1px solid #EAECF0">Sent by <strong>${brandName}</strong> &middot; Direct link: <a href="${verifyUrl}" style="color:#0B8F63;word-break:break-all;text-decoration:none">${verifyUrl}</a></td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>`;
 }
 
 function emailInvoiceAutoDebitInitiatedTemplate({
@@ -490,55 +570,121 @@ function emailInvoiceAutoDebitInitiatedTemplate({
   checkbookPaymentId
 }) {
   return `
-  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:0 auto;border:1px solid #E2E8F0;border-radius:16px;background:#FFFFFF;color:#0F172A;overflow:hidden">
-    ${buildCompanyLogoHeader(brandName, `ACH TRANSFER · ${status}`)}
-    <div style="padding:28px">
-      <h2 style="margin:0 0 8px;font-size:20px;color:#0A1220">Invoice #${invoiceNumber} Payment Initiated</h2>
-      <p style="margin:0 0 18px;font-size:14px;color:#475467;line-height:1.6">
-        Hello <strong>${businessName}</strong>, <strong>${brandName}</strong> has initiated the ACH transfer for Invoice <strong>#${invoiceNumber}</strong> using your verified bank account ending in <strong>•••• ${accountLast4}</strong>.
-        <strong>No manual action is required from you.</strong>
-      </p>
-      <table style="width:100%;border-collapse:collapse;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;font-size:13px;margin-bottom:16px">
-        <tr><td style="padding:9px 14px;color:#667085">Merchant</td><td style="padding:9px 14px;text-align:right;font-weight:600">${brandName}</td></tr>
-        <tr><td style="padding:9px 14px;color:#667085">Invoice Number</td><td style="padding:9px 14px;text-align:right;font-weight:600">#${invoiceNumber}</td></tr>
-        <tr><td style="padding:9px 14px;color:#667085">Memo</td><td style="padding:9px 14px;text-align:right;font-weight:600">${description}</td></tr>
-        <tr><td style="padding:9px 14px;color:#667085">Verified Bank Account</td><td style="padding:9px 14px;text-align:right;font-weight:600">•••• ${accountLast4}</td></tr>
-        <tr><td style="padding:9px 14px;color:#667085">Transfer Reference</td><td style="padding:9px 14px;text-align:right;font-family:monospace">${checkbookPaymentId}</td></tr>
-        <tr><td style="padding:9px 14px;color:#667085">Transfer Status</td><td style="padding:9px 14px;text-align:right;font-weight:700;color:#1D4ED8">${status}</td></tr>
-        <tr style="border-top:1px solid #E2E8F0"><td style="padding:11px 14px;font-weight:700">Total Amount</td><td style="padding:11px 14px;text-align:right;font-weight:800;font-size:16px;color:#0B8F63">$${Number(amount).toFixed(2)} USD</td></tr>
-      </table>
-      <p style="margin:0;font-size:12px;color:#667085">
-        <strong>${brandName}</strong> will automatically email you a final settlement confirmation as soon as the ACH transfer clears (status: <strong>PAID</strong>).
-      </p>
-    </div>
-  </div>`;
+  <table style="width:100%;border-collapse:collapse;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;overflow:hidden">
+    <tr>
+      <td style="background:linear-gradient(135deg,#0A1220 0%,#111C33 100%);padding:22px 24px;border-bottom:3px solid #0B8F63">
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="width:44px;vertical-align:middle">
+              <table style="border-collapse:collapse">
+                <tr>
+                  <td style="width:44px;height:44px;background:#0B8F63;border-radius:10px;text-align:center;vertical-align:middle">
+                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:22px;font-weight:900;color:#FFFFFF;line-height:44px">M</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td style="padding-left:12px;vertical-align:middle">
+              <div style="font-size:17px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;line-height:1.15">${brandName}</div>
+              <div style="font-size:10px;font-weight:600;color:#6EE7B7;letter-spacing:0.06em;text-transform:uppercase;margin-top:2px">Commercial ACH &amp; Treasury</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px">
+        <h2 style="margin:0 0 8px;font-size:20px;color:#0A1220">Invoice #${invoiceNumber} Payment Initiated</h2>
+        <p style="margin:0 0 18px;font-size:14px;color:#475467;line-height:1.6">
+          Hello <strong>${businessName}</strong>, <strong>${brandName}</strong> has initiated the ACH transfer for Invoice <strong>#${invoiceNumber}</strong> using your verified bank account ending in <strong>•••• ${accountLast4}</strong>.
+          <strong>No manual action is required from you.</strong>
+        </p>
+        <table style="width:100%;border-collapse:collapse;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;font-size:13px;margin-bottom:16px">
+          <tr><td style="padding:9px 14px;color:#667085">Merchant</td><td style="padding:9px 14px;text-align:right;font-weight:600">${brandName}</td></tr>
+          <tr><td style="padding:9px 14px;color:#667085">Invoice Number</td><td style="padding:9px 14px;text-align:right;font-weight:600">#${invoiceNumber}</td></tr>
+          <tr><td style="padding:9px 14px;color:#667085">Memo</td><td style="padding:9px 14px;text-align:right;font-weight:600">${description}</td></tr>
+          <tr><td style="padding:9px 14px;color:#667085">Verified Bank Account</td><td style="padding:9px 14px;text-align:right;font-weight:600">•••• ${accountLast4}</td></tr>
+          <tr><td style="padding:9px 14px;color:#667085">Transfer Reference</td><td style="padding:9px 14px;text-align:right;font-family:monospace">${checkbookPaymentId}</td></tr>
+          <tr><td style="padding:9px 14px;color:#667085">Transfer Status</td><td style="padding:9px 14px;text-align:right;font-weight:700;color:#1D4ED8">${status}</td></tr>
+          <tr style="border-top:1px solid #E2E8F0"><td style="padding:11px 14px;font-weight:700">Total Amount</td><td style="padding:11px 14px;text-align:right;font-weight:800;font-size:16px;color:#0B8F63">$${Number(amount).toFixed(2)} USD</td></tr>
+        </table>
+        <p style="margin:0;font-size:12px;color:#667085">
+          <strong>${brandName}</strong> will automatically email you a final settlement confirmation as soon as the ACH transfer clears (status: <strong>PAID</strong>).
+        </p>
+      </td>
+    </tr>
+  </table>`;
 }
 
 function emailInvoicePaidWebhookTemplate({ brandName, businessName, invoiceNumber, amount, description, accountLast4, status }) {
   return `
-  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:0 auto;border:1px solid #E2E8F0;border-radius:16px;background:#FFFFFF;color:#0F172A;overflow:hidden">
-    ${buildCompanyLogoHeader(brandName, `PAYMENT SETTLED · ${status}`)}
-    <div style="padding:28px">
-      <h2 style="margin:0 0 8px;font-size:20px;color:#0A1220">Payment Receipt — Invoice #${invoiceNumber} is ${status}</h2>
-      <p style="margin:0 0 14px;font-size:14px;color:#475467;line-height:1.6">
-        Hello <strong>${businessName}</strong>, your ACH payment of <strong>$${Number(amount).toFixed(2)} USD</strong> to <strong>${brandName}</strong> for Invoice <strong>#${invoiceNumber}</strong> (${description}) from bank account <strong>•••• ${accountLast4}</strong> has settled with status <strong>${status}</strong>.
-      </p>
-      <p style="margin:0;font-size:12px;color:#667085">Thank you for doing business with <strong>${brandName}</strong>.</p>
-    </div>
-  </div>`;
+  <table style="width:100%;border-collapse:collapse;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;overflow:hidden">
+    <tr>
+      <td style="background:linear-gradient(135deg,#0A1220 0%,#111C33 100%);padding:22px 24px;border-bottom:3px solid #0B8F63">
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="width:44px;vertical-align:middle">
+              <table style="border-collapse:collapse">
+                <tr>
+                  <td style="width:44px;height:44px;background:#0B8F63;border-radius:10px;text-align:center;vertical-align:middle">
+                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:22px;font-weight:900;color:#FFFFFF;line-height:44px">M</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td style="padding-left:12px;vertical-align:middle">
+              <div style="font-size:17px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;line-height:1.15">${brandName}</div>
+              <div style="font-size:10px;font-weight:600;color:#6EE7B7;letter-spacing:0.06em;text-transform:uppercase;margin-top:2px">Commercial ACH &amp; Treasury</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px">
+        <h2 style="margin:0 0 8px;font-size:20px;color:#0A1220">Payment Receipt — Invoice #${invoiceNumber} is ${status}</h2>
+        <p style="margin:0 0 14px;font-size:14px;color:#475467;line-height:1.6">
+          Hello <strong>${businessName}</strong>, your ACH payment of <strong>$${Number(amount).toFixed(2)} USD</strong> to <strong>${brandName}</strong> for Invoice <strong>#${invoiceNumber}</strong> (${description}) from bank account <strong>•••• ${accountLast4}</strong> has settled with status <strong>${status}</strong>.
+        </p>
+        <p style="margin:0;font-size:12px;color:#667085">Thank you for doing business with <strong>${brandName}</strong>.</p>
+      </td>
+    </tr>
+  </table>`;
 }
 
 function emailPayoutSentTemplate({ brandName, recipientName, amount, description, checkId, status }) {
   return `
-  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:0 auto;border:1px solid #E2E8F0;border-radius:16px;background:#FFFFFF;color:#0F172A;overflow:hidden">
-    ${buildCompanyLogoHeader(brandName, `OUTBOUND PAYOUT · ${status}`)}
-    <div style="padding:28px">
-      <h2 style="margin:0 0 8px;font-size:20px;color:#0A1220">${brandName} Sent You a Payment of $${Number(amount).toFixed(2)}</h2>
-      <p style="margin:0 0 14px;font-size:14px;color:#475467;line-height:1.6">
-        Hello <strong>${recipientName}</strong>, <strong>${brandName}</strong> has disbursed <strong>$${Number(amount).toFixed(2)} USD</strong> to you for: <em>${description}</em> (Reference: <code>${checkId}</code>).
-      </p>
-    </div>
-  </div>`;
+  <table style="width:100%;border-collapse:collapse;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;overflow:hidden">
+    <tr>
+      <td style="background:linear-gradient(135deg,#0A1220 0%,#111C33 100%);padding:22px 24px;border-bottom:3px solid #0B8F63">
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td style="width:44px;vertical-align:middle">
+              <table style="border-collapse:collapse">
+                <tr>
+                  <td style="width:44px;height:44px;background:#0B8F63;border-radius:10px;text-align:center;vertical-align:middle">
+                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:22px;font-weight:900;color:#FFFFFF;line-height:44px">M</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td style="padding-left:12px;vertical-align:middle">
+              <div style="font-size:17px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;line-height:1.15">${brandName}</div>
+              <div style="font-size:10px;font-weight:600;color:#6EE7B7;letter-spacing:0.06em;text-transform:uppercase;margin-top:2px">Commercial ACH &amp; Treasury</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px">
+        <h2 style="margin:0 0 8px;font-size:20px;color:#0A1220">${brandName} Sent You a Payment of $${Number(amount).toFixed(2)}</h2>
+        <p style="margin:0 0 14px;font-size:14px;color:#475467;line-height:1.6">
+          Hello <strong>${recipientName}</strong>, <strong>${brandName}</strong> has disbursed <strong>$${Number(amount).toFixed(2)} USD</strong> to you for: <em>${description}</em> (Reference: <code>${checkId}</code>).
+        </p>
+      </td>
+    </tr>
+  </table>`;
 }
 
 module.exports = {
