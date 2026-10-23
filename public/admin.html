@@ -457,9 +457,12 @@
               <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
                 <div>
                   <h3>Customer Bank Verification Directory</h3>
-                  <div class="micro">Invoices are gated until a customer’s bank status reaches <b>VERIFIED</b>.</div>
+                  <div class="micro">Synced with your Checkbook Dashboard. Invoices auto-debit once a customer’s bank reaches <b>VERIFIED</b>.</div>
                 </div>
-                <a href="/" class="btn btn-secondary btn-sm">+ Onboard Customer</a>
+                <div class="row gap8">
+                  <button type="button" class="btn btn-secondary btn-sm" id="syncCbBtn" onclick="syncCheckbookDashboard()">&#x21bb; Sync Checkbook</button>
+                  <a href="/" class="btn btn-brand btn-sm">+ Onboard Customer</a>
+                </div>
               </div>
               <table>
                 <thead>
@@ -1013,22 +1016,30 @@
 
       // Customers Table
       const cBody = document.getElementById('customersTableBody');
-      cBody.innerHTML = adminState.customers.map(c => `
+      cBody.innerHTML = adminState.customers.length
+        ? adminState.customers.map(c => `
         <tr>
           <td>
             <div style="font-weight:600">${c.businessName}</div>
             <div class="micro">${c.email}</div>
           </td>
           <td><span class="mono">${c.user_id}</span></td>
-          <td>${c.accountLast4 ? `${c.bankName || 'Bank'} •••• ${c.accountLast4}` : '<span class="micro">Unlinked</span>'}</td>
+          <td>${c.accountLast4 ? `${c.bankName || 'Bank'} •••• ${c.accountLast4}` : '<span class="micro">Unlinked (Needs Bank)</span>'}</td>
           <td>${badgeForStatus(c.bankStatus)}</td>
           <td style="text-align:right">
             ${c.bankStatus === 'VERIFIED'
               ? `<button class="btn btn-brand btn-sm" onclick="selectCustomerForInvoice('${c.id}')">Select for Auto-Debit</button>`
-              : `<a class="btn btn-secondary btn-sm" href="/?token=${c.token}">Verification Link &rarr;</a>`}
+              : `<div class="row gap6" style="justify-content:flex-end">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="copyCustomerLink('${c.token}','${c.businessName.replace(/'/g, "\\'")}')">
+                    <svg width="11" height="11"><use href="#i-copy"/></svg>
+                    <span>Copy Link</span>
+                  </button>
+                  <a class="btn btn-brand btn-sm" href="/?token=${c.token}">Verify Bank &rarr;</a>
+                </div>`}
           </td>
         </tr>
-      `).join('');
+      `).join('')
+        : `<tr><td colspan="5" class="micro" style="text-align:center;padding:22px">No customers yet. Click "Sync Checkbook" or "+ Onboard Customer".</td></tr>`;
 
       // Verified customers dropdowns
       const invSel = document.getElementById('invoiceCustomerSelect');
@@ -1056,7 +1067,9 @@
             <td style="text-align:right">
               ${inv.status === 'IN_PROCESS'
                 ? `<button class="btn btn-secondary btn-sm" onclick="simulateWebhook('INVOICE','PAID','${inv.id}')">Mark PAID (Webhook)</button>`
-                : `<span class="micro">Settled</span>`}
+                : (inv.status === 'UNPAID'
+                    ? `<span class="micro" style="color:var(--amber);font-weight:600">Needs Verified Bank</span>`
+                    : `<span class="micro">Settled</span>`)}
             </td>
           </tr>
         `).join('')
@@ -1159,6 +1172,33 @@
     function copyWebhookUrl() {
       navigator.clipboard.writeText(document.getElementById('webhookUrlBox').textContent);
       showToast('Webhook URL copied to clipboard.');
+    }
+
+    function copyCustomerLink(token, bizName) {
+      const link = window.location.origin + '/?token=' + token;
+      navigator.clipboard.writeText(link);
+      showToast(`Direct Bank Verification Link for ${bizName} copied: ${link}`);
+    }
+
+    async function syncCheckbookDashboard() {
+      const btn = document.getElementById('syncCbBtn');
+      btn.disabled = true;
+      btn.textContent = 'Syncing…';
+      try {
+        const res = await adminFetch('/api/admin/sync-checkbook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        });
+        const data = await res.json();
+        await loadAdminState();
+        showToast(data.message || 'Synced with Checkbook Dashboard.');
+      } catch (err) {
+        showToast(err.message, 'err');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#x21bb; Sync Checkbook';
+      }
     }
 
     document.getElementById('autoDebitForm').addEventListener('submit', async (e) => {

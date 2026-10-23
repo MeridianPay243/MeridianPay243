@@ -163,6 +163,94 @@ async function verifyCheckbookConnection(state) {
   return result;
 }
 
+// 0B. Sync Existing Customers (GET /v3/directory) & Invoices (GET /v3/invoice) from Checkbook Dashboard
+async function syncWithCheckbookDashboard(state) {
+  if (!hasLiveOwnerKeys(state.config)) return { syncedCustomers: 0, syncedInvoices: 0 };
+  const ownerAuth = `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
+  let syncedCustomers = 0;
+  let syncedInvoices = 0;
+
+  // 1. Pull Directory Entries (GET /v3/directory)
+  const dirRes = await checkbookRequest(state, {
+    method: 'GET',
+    path: '/directory',
+    auth: ownerAuth,
+    authLabel: 'owner key (directory sync)'
+  });
+
+  if (dirRes.ok && Array.isArray(dirRes.data.entries)) {
+    for (const entry of dirRes.data.entries) {
+      if (!entry.email) continue;
+      const emailLower = String(entry.email).trim().toLowerCase();
+      let existing = state.customers.find(c => c.email.toLowerCase() === emailLower);
+      if (!existing) {
+        const slug = emailLower.split('@')[0].replace(/[^a-z0-9]/gi, '').slice(0, 12) || 'cust';
+        const shortId = String(entry.id || '').slice(0, 8) || crypto.randomBytes(4).toString('hex');
+        state.customers.push({
+          id: 'cust_cb_' + shortId,
+          token: 'tok_cb_' + String(entry.id || shortId).slice(0, 16),
+          businessName: entry.name || emailLower,
+          email: emailLower,
+          user_id: `cust_${slug}_${shortId.slice(0, 4)}`,
+          checkbook_directory_id: entry.id,
+          checkbook_user_uuid: null,
+          encrypted_key: '',
+          encrypted_secret: '',
+          bank_id: null,
+          bankName: null,
+          routing: null,
+          accountLast4: null,
+          accountType: 'BUSINESS',
+          verificationMethod: null,
+          bankStatus: 'UNLINKED',
+          attemptsRemaining: 3,
+          mandateSignedAt: entry.date || new Date().toISOString(),
+          createdAt: entry.date || new Date().toISOString()
+        });
+        syncedCustomers++;
+      }
+    }
+  }
+
+  // 2. Pull Invoices (GET /v3/invoice)
+  const invRes = await checkbookRequest(state, {
+    method: 'GET',
+    path: '/invoice',
+    auth: ownerAuth,
+    authLabel: 'owner key (invoice sync)'
+  });
+
+  if (invRes.ok && Array.isArray(invRes.data.invoices)) {
+    for (const cbInv of invRes.data.invoices) {
+      let existingInv = state.invoices.find(i => i.id === cbInv.id || String(i.number) === String(cbInv.number));
+      if (!existingInv) {
+        const recEmail = String(cbInv.recipient || '').trim().toLowerCase();
+        const matchedCust = state.customers.find(c => c.email.toLowerCase() === recEmail || c.user_id === cbInv.recipient);
+        state.invoices.push({
+          id: cbInv.id,
+          payment_id: cbInv.check_id || null,
+          number: String(cbInv.number || ''),
+          customerId: matchedCust ? matchedCust.id : null,
+          businessName: cbInv.name || (matchedCust ? matchedCust.businessName : cbInv.recipient),
+          email: matchedCust ? matchedCust.email : cbInv.recipient,
+          user_id: matchedCust ? matchedCust.user_id : cbInv.recipient,
+          accountLast4: (matchedCust && matchedCust.accountLast4) ? matchedCust.accountLast4 : 'Unverified',
+          amount: Number(cbInv.amount || 0),
+          description: cbInv.description || 'Invoice',
+          status: cbInv.status || 'UNPAID',
+          createdAt: cbInv.date || new Date().toISOString()
+        });
+        syncedInvoices++;
+      } else {
+        existingInv.status = cbInv.status || existingInv.status;
+      }
+    }
+  }
+
+  state.config.lastDashboardSyncAt = new Date().toISOString();
+  return { syncedCustomers, syncedInvoices };
+}
+
 // 1. Create Guest Marketplace User (POST /v3/user with Owner key)
 async function createGuestMarketplaceUser(state, { businessName, user_id }) {
   if (hasLiveOwnerKeys(state.config)) {
@@ -630,6 +718,7 @@ function verifyWebhookSignature(rawBody, signatureHeader, signingKey) {
 
 module.exports = {
   verifyCheckbookConnection,
+  syncWithCheckbookDashboard,
   createGuestMarketplaceUser,
   listInstitutionsForCustomer,
   linkBankViaCheckbookIAV,

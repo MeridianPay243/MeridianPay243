@@ -9,6 +9,7 @@ const {
 } = require('./_lib/store');
 const {
   verifyCheckbookConnection,
+  syncWithCheckbookDashboard,
   createGuestMarketplaceUser,
   listInstitutionsForCustomer,
   linkBankViaCheckbookIAV,
@@ -64,6 +65,27 @@ function extractAdminToken(event) {
     return auth.slice(7).trim();
   }
   return headers['x-admin-token'] || headers['X-Admin-Token'] || '';
+}
+
+async function ensureMarketplaceUserKeys(state, customer) {
+  if (customer.encrypted_key && customer.encrypted_secret) {
+    return {
+      custKey: decryptText(customer.encrypted_key),
+      custSecret: decryptText(customer.encrypted_secret)
+    };
+  }
+  const slug = customer.email.split('@')[0].replace(/[^a-z0-9]/gi, '').slice(0, 12).toLowerCase() || 'guest';
+  const user_id = customer.user_id || `cust_${slug}_${crypto.randomBytes(2).toString('hex')}`;
+  const cbUser = await createGuestMarketplaceUser(state, {
+    businessName: customer.businessName,
+    user_id
+  });
+  customer.user_id = cbUser.user_id || user_id;
+  customer.checkbook_user_uuid = cbUser.id;
+  customer.encrypted_key = encryptText(cbUser.key);
+  customer.encrypted_secret = encryptText(cbUser.secret);
+  saveState(state);
+  return { custKey: cbUser.key, custSecret: cbUser.secret };
 }
 
 exports.handler = async (event) => {
@@ -131,6 +153,10 @@ exports.handler = async (event) => {
         return json(400, { error: 'Please provide both Business Name and a valid Email.' });
       }
 
+      if (!state.config.lastDashboardSyncAt) {
+        await syncWithCheckbookDashboard(state);
+      }
+
       let existing = state.customers.find(c => c.email.toLowerCase() === email);
       if (existing) {
         existing.businessName = businessName;
@@ -168,10 +194,15 @@ exports.handler = async (event) => {
       return json(200, { customer: sanitizeCustomer(customer), reused: false });
     }
 
-    // 2. Load guest session by token (for magic link return)
+    // 2. Load guest session by token (for magic link return or personalized Checkbook directory link)
     if (method === 'GET' && route === '/guest/session') {
       const token = (event.queryStringParameters && event.queryStringParameters.token) || '';
-      const customer = state.customers.find(c => c.token === token);
+      let customer = state.customers.find(c => c.token === token);
+      if (!customer && token.startsWith('tok_cb_')) {
+        await syncWithCheckbookDashboard(state);
+        saveState(state);
+        customer = state.customers.find(c => c.token === token);
+      }
       if (!customer) {
         return json(404, { error: 'Guest verification session not found.' });
       }
@@ -182,8 +213,8 @@ exports.handler = async (event) => {
     if (method === 'GET' && route === '/bank/institutions') {
       const token = (event.queryStringParameters && event.queryStringParameters.token) || '';
       const customer = state.customers.find(c => c.token === token) || state.customers[0];
-      const custKey = customer ? decryptText(customer.encrypted_key) : 'demo';
-      const custSecret = customer ? decryptText(customer.encrypted_secret) : 'demo';
+      const custKey = customer ? decryptText(customer.encrypted_key) : '';
+      const custSecret = customer ? decryptText(customer.encrypted_secret) : '';
       const inst = await listInstitutionsForCustomer(state, custKey, custSecret);
       saveState(state);
       return json(200, inst);
@@ -195,8 +226,7 @@ exports.handler = async (event) => {
       const customer = state.customers.find(c => c.token === token);
       if (!customer) return json(404, { error: 'Guest session not found.' });
 
-      const custKey = decryptText(customer.encrypted_key);
-      const custSecret = decryptText(customer.encrypted_secret);
+      const { custKey, custSecret } = await ensureMarketplaceUserKeys(state, customer);
 
       const res = await linkBankViaCheckbookIAV(state, custKey, custSecret, {
         institution_id: institution_id || 'c7b3cb4a243a4427b2bd12871d8f6deb',
@@ -235,8 +265,7 @@ exports.handler = async (event) => {
         return json(400, { error: 'Please enter a valid 9-digit ABA routing number and account number.' });
       }
 
-      const custKey = decryptText(customer.encrypted_key);
-      const custSecret = decryptText(customer.encrypted_secret);
+      const { custKey, custSecret } = await ensureMarketplaceUserKeys(state, customer);
 
       const res = await linkBankViaMicrodeposits(state, custKey, custSecret, {
         routing: cleanRouting,
@@ -315,10 +344,17 @@ exports.handler = async (event) => {
 
     // 7. Admin Portal State (Protected by Admin Auth)
     if (method === 'GET' && route === '/admin/state') {
+      let needsSave = false;
       if (!state.config.lastVerification) {
         await verifyCheckbookConnection(state);
-        saveState(state);
+        needsSave = true;
       }
+      if (!state.config.lastDashboardSyncAt) {
+        await syncWithCheckbookDashboard(state);
+        needsSave = true;
+      }
+      if (needsSave) saveState(state);
+
       return json(200, {
         config: {
           brandName: state.config.brandName,
@@ -328,6 +364,7 @@ exports.handler = async (event) => {
           hasWebhookSecret: Boolean(state.config.webhookSecret),
           webhookSecretPreview: state.config.webhookSecret ? state.config.webhookSecret.slice(0, 4) + '••••' : '',
           lastVerification: state.config.lastVerification || null,
+          lastDashboardSyncAt: state.config.lastDashboardSyncAt || null,
           smtpHost: state.config.smtpHost || 'smtp.gmail.com',
           smtpPort: state.config.smtpPort || '587',
           smtpUser: state.config.smtpUser || 'efugduhfr@gmail.com',
@@ -341,6 +378,17 @@ exports.handler = async (event) => {
         emails: state.emails,
         webhooks: state.webhooks,
         apiLogs: state.apiLogs
+      });
+    }
+
+    // 7B. Manual Re-Sync from Checkbook Dashboard (Directory + Invoices)
+    if (method === 'POST' && route === '/admin/sync-checkbook') {
+      const syncResult = await syncWithCheckbookDashboard(state);
+      saveState(state);
+      return json(200, {
+        ok: true,
+        ...syncResult,
+        message: `Synced from Checkbook Dashboard (${syncResult.syncedCustomers} new customer(s), ${syncResult.syncedInvoices} new invoice(s)).`
       });
     }
 
