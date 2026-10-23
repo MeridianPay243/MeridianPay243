@@ -11,7 +11,7 @@ const {
   verifyWebhookSignature,
   hasLiveOwnerKeys
 } = require('./_lib/checkbook');
-const { sendCustomerEmail } = require('./_lib/mailer');
+const { sendCustomerEmail, verifyAndSendTestEmail } = require('./_lib/mailer');
 
 function ensureSeeded(state) {
   if (state.customers.length === 0) {
@@ -25,7 +25,7 @@ function ensureSeeded(state) {
       checkbook_user_uuid: '9d7263e9db75473d8acf259b77c99df4',
       encryptedAuth: encryptText('sim_pub_northwind:sim_sec_northwind'),
       bank_id: 'bank_1bc0ce98ce',
-      bankName: 'JPMorgan Chase Bank',
+      bankName: 'JPMorgan Chase Bank, N.A.',
       routing: '322271627',
       accountLast4: '6789',
       accountType: 'BUSINESS',
@@ -60,6 +60,35 @@ function jsonResponse(statusCode, obj) {
   };
 }
 
+function applyConfigUpdates(state, body) {
+  const fields = [
+    'brandName',
+    'checkbookEnv',
+    'checkbookKey',
+    'checkbookSecret',
+    'webhookSecret',
+    'smtpHost',
+    'smtpPort',
+    'smtpUser',
+    'smtpPass',
+    'fromEmail'
+  ];
+  fields.forEach(f => {
+    if (body[f] !== undefined && body[f] !== '__KEEP__' && String(body[f]).trim() !== '') {
+      let val = String(body[f]).trim();
+      if (f === 'smtpPass') {
+        val = val.replace(/\s+/g, '');
+      }
+      state.config[f] = val;
+    }
+  });
+  if (!state.config.smtpHost) state.config.smtpHost = 'smtp.gmail.com';
+  if (!state.config.smtpPort) state.config.smtpPort = '587';
+  if (!state.config.fromEmail && state.config.smtpUser) {
+    state.config.fromEmail = state.config.smtpUser;
+  }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return jsonResponse(200, { ok: true });
@@ -91,7 +120,6 @@ exports.handler = async (event) => {
         return jsonResponse(400, { error: 'Please enter both your Business Name and a valid Email address.' });
       }
 
-      // Check if guest already has an active session by email
       let existing = state.customers.find(c => c.email === email);
       if (existing) {
         return jsonResponse(200, {
@@ -100,7 +128,6 @@ exports.handler = async (event) => {
         });
       }
 
-      // Create internal user_id slug (NOT raw email, so Checkbook allows programmatic POST /v3/invoice/payment)
       const slugBase = businessName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 14) || 'guest';
       const userIdSlug = `cust_${slugBase}_${crypto.randomBytes(2).toString('hex')}`;
 
@@ -188,10 +215,11 @@ exports.handler = async (event) => {
         subject: `${state.config.brandName}: Bank account •••• ${customer.accountLast4} verified for auto-debit`,
         tag: 'BANK_VERIFIED',
         meta: { customerId: customer.id, bankLast4: customer.accountLast4 },
-        html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
-          <h2 style="margin:0 0 8px;color:#0a1220">Bank Verified — ${customer.businessName}</h2>
-          <p style="color:#475467;line-height:1.5">Your bank account <b>${customer.bankName} (•••• ${customer.accountLast4})</b> has been verified instantly via Checkbook IAV.</p>
-          <p style="color:#475467;line-height:1.5"><b>No further action is required.</b> Whenever an invoice is issued to <b>${customer.businessName}</b>, it will be debited automatically and we will email your payment status updates to <b>${customer.email}</b>.</p>
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
+          <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:#E7F6F0;color:#07714E;font-size:11px;font-weight:700;margin-bottom:10px">BANK VERIFIED</div>
+          <h2 style="margin:0 0 8px;color:#0a1220">Bank Account Verified — ${customer.businessName}</h2>
+          <p style="color:#475467;line-height:1.55">Your bank account <b>${customer.bankName} (•••• ${customer.accountLast4})</b> has been verified via Instant Bank Verification.</p>
+          <p style="color:#475467;line-height:1.55"><b>No further action is required.</b> Whenever an invoice is issued to <b>${customer.businessName}</b>, payment will be debited automatically and we will email your receipt and settlement status updates to <b>${customer.email}</b>.</p>
         </div>`
       });
 
@@ -237,11 +265,12 @@ exports.handler = async (event) => {
         subject: `${state.config.brandName}: Confirm your 2 micro-deposits for ${customer.businessName}`,
         tag: 'MICRODEPOSIT_LINK',
         meta: { customerId: customer.id, returnUrl },
-        html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
+          <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:#FEF6EE;color:#B54708;font-size:11px;font-weight:700;margin-bottom:10px">MICRO-DEPOSITS SENT</div>
           <h2 style="margin:0 0 8px;color:#0a1220">Two micro-deposits are on the way</h2>
-          <p style="color:#475467;line-height:1.5">We initiated two small credits under $1.00 to <b>•••• ${customer.accountLast4}</b> for <b>${customer.businessName}</b> (in Sandbox, amounts are always <b>$0.07</b> and <b>$0.15</b>).</p>
-          <p style="margin:20px 0"><a href="${returnUrl}" style="background:#0B8F63;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Return to Confirm Micro-Deposit Amounts →</a></p>
-          <p style="color:#667085;font-size:12px">Direct link: ${returnUrl}</p>
+          <p style="color:#475467;line-height:1.55">We initiated two small credits under $1.00 to <b>${customer.bankName} (•••• ${customer.accountLast4})</b> for <b>${customer.businessName}</b>.</p>
+          <p style="margin:22px 0"><a href="${returnUrl}" style="background:#0B8F63;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">Confirm Micro-Deposit Amounts &rarr;</a></p>
+          <p style="color:#667085;font-size:12px;margin:0">Direct verification link: ${returnUrl}</p>
         </div>`
       });
 
@@ -281,10 +310,11 @@ exports.handler = async (event) => {
         subject: `${state.config.brandName}: Bank account •••• ${customer.accountLast4} is now VERIFIED`,
         tag: 'BANK_VERIFIED',
         meta: { customerId: customer.id, bankLast4: customer.accountLast4 },
-        html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
-          <h2 style="margin:0 0 8px;color:#0a1220">Bank Verified — You're All Set</h2>
-          <p style="color:#475467;line-height:1.5">Your bank account <b>•••• ${customer.accountLast4}</b> for <b>${customer.businessName}</b> is now <b>VERIFIED</b>.</p>
-          <p style="color:#475467;line-height:1.5">Whenever an invoice is issued to your business, payment will be debited automatically and we will email your receipt and status updates to <b>${customer.email}</b>. You never need to click "Pay".</p>
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
+          <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:#E7F6F0;color:#07714E;font-size:11px;font-weight:700;margin-bottom:10px">BANK VERIFIED</div>
+          <h2 style="margin:0 0 8px;color:#0a1220">Bank Verified — Setup Complete</h2>
+          <p style="color:#475467;line-height:1.55">Your bank account <b>${customer.bankName || 'Bank'} (•••• ${customer.accountLast4})</b> for <b>${customer.businessName}</b> is now <b>VERIFIED</b>.</p>
+          <p style="color:#475467;line-height:1.55">Whenever an invoice is issued to your business, payment will be debited automatically and we will email your receipt and settlement status updates to <b>${customer.email}</b>.</p>
         </div>`
       });
 
@@ -301,12 +331,11 @@ exports.handler = async (event) => {
           hasLiveCheckbookKeys: hasLiveOwnerKeys(state.config),
           checkbookKeyPreview: state.config.checkbookKey ? state.config.checkbookKey.slice(0, 6) + '…' : '',
           hasWebhookSecret: Boolean(state.config.webhookSecret),
-          smtpHost: state.config.smtpHost,
-          smtpPort: state.config.smtpPort,
-          smtpUser: state.config.smtpUser,
-          fromEmail: state.config.fromEmail,
-          hasSmtpPass: Boolean(state.config.smtpPass),
-          hasBrevoKey: Boolean(state.config.brevoApiKey)
+          smtpHost: state.config.smtpHost || 'smtp.gmail.com',
+          smtpPort: state.config.smtpPort || '587',
+          smtpUser: state.config.smtpUser || '',
+          fromEmail: state.config.fromEmail || state.config.smtpUser || '',
+          hasSmtpPass: Boolean(state.config.smtpPass && state.config.smtpUser)
         },
         customers: state.customers.map(sanitizeCustomer),
         invoices: state.invoices,
@@ -318,7 +347,6 @@ exports.handler = async (event) => {
     }
 
     // 8. Admin 1-Click Issue & Auto-Debit Invoice
-    //    Calls POST /v3/invoice (owner key) + POST /v3/invoice/payment (guest key) + Emails customer IN_PROCESS status
     if (method === 'POST' && rawPath === '/admin/invoice-autodebit') {
       const { customerId, amount, description } = body;
       const customer = state.customers.find(c => c.id === customerId);
@@ -354,24 +382,23 @@ exports.handler = async (event) => {
       };
       state.invoices.unshift(invoiceRecord);
 
-      // Immediately email the customer that the invoice was issued and auto-debit is IN_PROCESS
       await sendCustomerEmail(state, {
         to: customer.email,
-        subject: `Invoice #${invoiceRecord.number} ($${invoiceRecord.amount.toFixed(2)}) issued — Auto-debit is ${invoiceRecord.status}`,
+        subject: `Invoice #${invoiceRecord.number} ($${invoiceRecord.amount.toFixed(2)}) issued — Automatic ACH debit is ${invoiceRecord.status}`,
         tag: 'INVOICE_AUTODEBIT_IN_PROCESS',
         meta: { invoiceId: invoiceRecord.id, status: invoiceRecord.status },
-        html: `<div style="font-family:sans-serif;max-width:580px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
           <div style="background:#E7F6F0;border:1px solid #BFE6D5;color:#075B40;padding:12px 16px;border-radius:8px;font-weight:600;margin-bottom:16px">
-            No action required — Auto-debit initiated from ${customer.bankName || 'Bank'} •••• ${customer.accountLast4}
+            No action required — Automatic ACH debit initiated from ${customer.bankName || 'Bank'} •••• ${customer.accountLast4}
           </div>
           <h2 style="margin:0 0 6px;color:#0a1220">Invoice #${invoiceRecord.number} — $${invoiceRecord.amount.toFixed(2)}</h2>
-          <p style="color:#475467;margin:0 0 16px">Billed to <b>${customer.businessName}</b> · Memo: ${invoiceRecord.description}</p>
+          <p style="color:#475467;margin:0 0 16px">Billed to <b>${customer.businessName}</b> &middot; Memo: ${invoiceRecord.description}</p>
           <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">
             <tr><td style="padding:8px 0;border-bottom:1px solid #eaecf0;color:#667085">Payment Status</td><td style="padding:8px 0;border-bottom:1px solid #eaecf0;text-align:right;font-weight:600;color:#0B8F63">${invoiceRecord.status} (ACH Auto-Debit)</td></tr>
             <tr><td style="padding:8px 0;border-bottom:1px solid #eaecf0;color:#667085">Debited Account</td><td style="padding:8px 0;border-bottom:1px solid #eaecf0;text-align:right">${customer.bankName || 'Bank'} •••• ${customer.accountLast4}</td></tr>
             <tr><td style="padding:8px 0;color:#667085">Estimated Settlement</td><td style="padding:8px 0;text-align:right">3–4 business days</td></tr>
           </table>
-          <p style="color:#667085;font-size:12.5px;margin:0">We will automatically email you a final receipt once the ACH transfer settles (status = PAID).</p>
+          <p style="color:#667085;font-size:12.5px;margin:0">We will automatically email you a final settlement receipt once the ACH transfer completes (status = PAID).</p>
         </div>`
       });
 
@@ -415,13 +442,13 @@ exports.handler = async (event) => {
       if (emailToNotify && emailToNotify.includes('@')) {
         await sendCustomerEmail(state, {
           to: emailToNotify,
-          subject: `${state.config.brandName}: Payout of $${payoutRecord.amount.toFixed(2)} sent to ${name}`,
+          subject: `${state.config.brandName}: Payment of $${payoutRecord.amount.toFixed(2)} sent to ${name}`,
           tag: 'PAYOUT_SENT',
           meta: { checkId: payoutRecord.id, status: payoutRecord.status },
-          html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
+          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
             <h2 style="margin:0 0 8px;color:#0a1220">You have received a payment of $${payoutRecord.amount.toFixed(2)}</h2>
-            <p style="color:#475467;line-height:1.5">${state.config.brandName} sent a payout (#${payoutRecord.number}) to <b>${name}</b>.</p>
-            <p style="color:#475467;line-height:1.5">Memo: <b>${payoutRecord.description}</b> · Status: <b>${payoutRecord.status}</b></p>
+            <p style="color:#475467;line-height:1.55">${state.config.brandName} sent a payout (#${payoutRecord.number}) to <b>${name}</b>.</p>
+            <p style="color:#475467;line-height:1.55">Memo: <b>${payoutRecord.description}</b> &middot; Status: <b>${payoutRecord.status}</b></p>
           </div>`
         });
       }
@@ -430,28 +457,23 @@ exports.handler = async (event) => {
       return jsonResponse(200, { payout: payoutRecord });
     }
 
-    // 10. Save / Update Admin Keys & Email Settings
+    // 10. Save / Update Admin Keys & Gmail SMTP Settings
     if (method === 'POST' && rawPath === '/admin/config') {
-      const fields = [
-        'brandName',
-        'checkbookEnv',
-        'checkbookKey',
-        'checkbookSecret',
-        'webhookSecret',
-        'smtpHost',
-        'smtpPort',
-        'smtpUser',
-        'smtpPass',
-        'fromEmail',
-        'brevoApiKey'
-      ];
-      fields.forEach(f => {
-        if (body[f] !== undefined && body[f] !== '__KEEP__') {
-          state.config[f] = String(body[f]).trim();
-        }
-      });
+      applyConfigUpdates(state, body);
       saveState(state);
-      return jsonResponse(200, { ok: true, message: 'Settings saved.' });
+      return jsonResponse(200, { ok: true, message: 'Configuration saved.' });
+    }
+
+    // 10b. Save & Test Gmail SMTP Live
+    if (method === 'POST' && rawPath === '/admin/test-smtp') {
+      applyConfigUpdates(state, body);
+      saveState(state);
+      const emailRec = await verifyAndSendTestEmail(state, body.testRecipient || state.config.smtpUser);
+      saveState(state);
+      return jsonResponse(200, {
+        ok: true,
+        message: `Connected to Gmail SMTP (${state.config.smtpUser})! Test email sent to ${emailRec.to}.`
+      });
     }
 
     // 11. Checkbook Webhook Receiver (POST /webhook/checkbook or /api/webhook/checkbook)
@@ -487,9 +509,10 @@ exports.handler = async (event) => {
             subject: `Invoice #${inv.number} Payment Status Update: ${evtStatus}`,
             tag: `INVOICE_${evtStatus}`,
             meta: { invoiceId: inv.id, status: evtStatus },
-            html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
-              <h2 style="margin:0 0 8px;color:#0a1220">Invoice #${inv.number} Status: ${evtStatus}</h2>
-              <p style="color:#475467;line-height:1.5">The automatic ACH payment of <b>$${inv.amount.toFixed(2)}</b> for <b>${inv.businessName}</b> (Account •••• ${inv.accountLast4}) is now <b>${evtStatus}</b>.</p>
+            html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
+              <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:#E7F6F0;color:#07714E;font-size:11px;font-weight:700;margin-bottom:10px">PAYMENT ${evtStatus}</div>
+              <h2 style="margin:0 0 8px;color:#0a1220">Invoice #${inv.number} — ${evtStatus}</h2>
+              <p style="color:#475467;line-height:1.55">The automatic ACH payment of <b>$${inv.amount.toFixed(2)}</b> for <b>${inv.businessName}</b> (Account •••• ${inv.accountLast4}) is now <b>${evtStatus}</b>.</p>
             </div>`
           });
         }

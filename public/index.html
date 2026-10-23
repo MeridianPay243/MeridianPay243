@@ -3,24 +3,30 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Verify Your Business Bank — Guest Checkout</title>
+  <title>Meridian Pay — Business Bank Verification &amp; ACH Authorization</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <style>
     :root {
       --brand: #0B8F63;
       --brand-700: #07714E;
+      --brand-800: #065B3F;
       --brand-soft: #E7F6F0;
+      --brand-border: #BFE6D5;
       --ink: #0A1220;
       --ink-2: #1E293B;
       --muted: #475467;
       --muted-2: #667085;
-      --bg: #F5F7FB;
+      --bg: #F4F7FA;
       --line: #E2E8F0;
-      --blue: #2563EB;
+      --line-2: #EEF2F6;
+      --blue: #1D4ED8;
       --blue-soft: #EFF4FF;
       --amber: #B54708;
       --amber-soft: #FEF6EE;
       --red: #B42318;
       --red-soft: #FEF3F2;
+      --shadow-sm: 0 1px 2px rgba(10, 18, 32, 0.04);
+      --shadow-md: 0 12px 32px -12px rgba(10, 18, 32, 0.08), 0 2px 6px rgba(10, 18, 32, 0.03);
     }
     * { box-sizing: border-box; }
     body {
@@ -29,45 +35,56 @@
       background: var(--bg);
       color: var(--ink);
       -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
     .topbar {
-      background: #fff;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--line);
-      height: 64px;
+      height: 68px;
       display: flex;
       align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 30;
     }
     .wrap {
-      max-width: 1120px;
+      max-width: 1140px;
       width: 100%;
       margin: 0 auto;
       padding: 0 24px;
     }
     .row { display: flex; align-items: center; }
     .between { justify-content: space-between; }
+    .gap6 { gap: 6px; }
     .gap8 { gap: 8px; }
+    .gap10 { gap: 10px; }
     .gap12 { gap: 12px; }
     .gap16 { gap: 16px; }
+
     .brand {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 10px;
+      gap: 11px;
       font-weight: 700;
-      font-size: 16px;
+      font-size: 16.5px;
+      letter-spacing: -0.02em;
       color: var(--ink);
       text-decoration: none;
     }
     .mark {
-      width: 30px;
-      height: 30px;
-      border-radius: 9px;
-      background: var(--brand);
-      color: #fff;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: linear-gradient(145deg, #0EA371, #07714E);
+      box-shadow: 0 4px 12px -2px rgba(11, 143, 99, 0.45);
       display: grid;
       place-items: center;
-      font-weight: 800;
-      font-size: 14px;
+      color: #fff;
     }
+
     .steps {
       display: flex;
       align-items: center;
@@ -76,34 +93,37 @@
       font-weight: 500;
       color: var(--muted-2);
     }
-    .step { display: flex; align-items: center; gap: 7px; }
+    .step { display: flex; align-items: center; gap: 8px; }
     .step .n {
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
       background: #EDF1F7;
       color: var(--muted);
       display: grid;
       place-items: center;
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 700;
+      transition: all 0.2s;
     }
     .step.now { color: var(--ink); font-weight: 600; }
-    .step.now .n { background: var(--ink); color: #fff; }
-    .step.done { color: var(--brand-700); }
+    .step.now .n { background: var(--ink); color: #fff; box-shadow: 0 0 0 3px rgba(10, 18, 32, 0.1); }
+    .step.done { color: var(--brand-700); font-weight: 600; }
     .step.done .n { background: var(--brand); color: #fff; }
-    .step-line { width: 24px; height: 1px; background: var(--line); }
+    .step-line { width: 28px; height: 1.5px; background: var(--line); }
+
     .pill {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      height: 24px;
+      height: 25px;
       padding: 0 10px;
       border-radius: 999px;
       font-size: 11.5px;
       font-weight: 600;
+      white-space: nowrap;
     }
-    .pill-green { background: var(--brand-soft); color: var(--brand-700); border: 1px solid #CDEBDD; }
+    .pill-green { background: var(--brand-soft); color: var(--brand-700); border: 1px solid var(--brand-border); }
     .pill-amber { background: var(--amber-soft); color: var(--amber); border: 1px solid #F3E0C4; }
     .pill-blue { background: var(--blue-soft); color: var(--blue); border: 1px solid #D7E1FB; }
     .pill-grey { background: #F1F5F9; color: var(--muted); border: 1px solid var(--line); }
@@ -114,31 +134,62 @@
       gap: 32px;
       padding: 36px 0 64px;
       align-items: start;
+      flex: 1;
     }
-    @media (max-width: 900px) {
+    @media (max-width: 920px) {
       .main-grid { grid-template-columns: 1fr; }
       .steps { display: none; }
     }
+
     .card {
       background: #fff;
       border: 1px solid var(--line);
       border-radius: 18px;
-      box-shadow: 0 8px 24px -12px rgba(10, 18, 32, 0.07);
+      box-shadow: var(--shadow-md);
     }
-    .card-pad { padding: 28px; }
-    h1 { font-size: 28px; letter-spacing: -0.025em; margin: 0 0 8px; }
-    h2 { font-size: 21px; letter-spacing: -0.02em; margin: 0 0 6px; }
-    h3 { font-size: 15px; margin: 0; }
-    .sub { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 0; }
-    .micro { color: var(--muted-2); font-size: 12px; line-height: 1.45; }
+    .card-pad { padding: 30px; }
+    h1 { font-size: 27px; letter-spacing: -0.025em; margin: 0 0 8px; line-height: 1.22; }
+    h2 { font-size: 21px; letter-spacing: -0.02em; margin: 0 0 6px; line-height: 1.28; }
+    h3 { font-size: 14.5px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+    .sub { color: var(--muted); font-size: 14px; line-height: 1.58; margin: 0; }
+    .micro { color: var(--muted-2); font-size: 12px; line-height: 1.48; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
 
     .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-    .label { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+    .label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink-2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .input-icon {
+      position: absolute;
+      left: 13px;
+      color: var(--muted-2);
+      pointer-events: none;
+      display: flex;
+    }
+    .input-suffix {
+      position: absolute;
+      right: 12px;
+      font-size: 11.5px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
     input[type="text"], input[type="email"], input[type="password"], input[type="number"], select {
-      height: 44px;
+      width: 100%;
+      height: 46px;
       padding: 0 14px;
-      border-radius: 10px;
+      border-radius: 11px;
       border: 1px solid #CBD5E1;
       font-size: 14px;
       color: var(--ink);
@@ -146,31 +197,40 @@
       outline: none;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
+    .has-icon input, .has-icon select { padding-left: 38px; }
     input:focus, select:focus {
       border-color: var(--brand);
-      box-shadow: 0 0 0 3px rgba(11, 143, 99, 0.14);
+      box-shadow: 0 0 0 3.5px rgba(11, 143, 99, 0.13);
     }
-    .check-row {
+
+    .mandate-box {
       display: flex;
       align-items: flex-start;
-      gap: 10px;
-      padding: 12px 14px;
+      gap: 12px;
+      padding: 14px 16px;
       background: #F8FAFC;
       border: 1px solid var(--line);
-      border-radius: 10px;
-      margin: 14px 0 20px;
+      border-radius: 12px;
+      margin: 18px 0 22px;
       font-size: 12.5px;
       color: var(--muted);
-      line-height: 1.5;
+      line-height: 1.55;
+      cursor: pointer;
     }
-    .check-row input { margin-top: 3px; accent-color: var(--brand); width: 16px; height: 16px; }
+    .mandate-box input {
+      margin-top: 3px;
+      accent-color: var(--brand);
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
 
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      height: 46px;
+      height: 48px;
       padding: 0 22px;
       border-radius: 11px;
       font-size: 14px;
@@ -180,9 +240,19 @@
       text-decoration: none;
       transition: all 0.15s;
     }
-    .btn-brand { background: var(--brand); color: #fff; }
+    .btn-brand {
+      background: var(--brand);
+      color: #fff;
+      box-shadow: 0 4px 12px -2px rgba(11, 143, 99, 0.35);
+    }
     .btn-brand:hover { background: var(--brand-700); }
-    .btn-secondary { background: #fff; color: var(--ink-2); border-color: #CBD5E1; }
+    .btn-brand:disabled { opacity: 0.65; cursor: not-allowed; }
+    .btn-secondary {
+      background: #fff;
+      color: var(--ink-2);
+      border-color: #CBD5E1;
+      box-shadow: var(--shadow-sm);
+    }
     .btn-secondary:hover { background: #F8FAFC; }
     .btn-sm { height: 34px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
     .btn-block { width: 100%; }
@@ -191,12 +261,12 @@
       display: flex;
       border-bottom: 1px solid var(--line);
       background: #FAFBFD;
-      padding: 0 24px;
+      padding: 0 26px;
       border-radius: 18px 18px 0 0;
+      gap: 28px;
     }
     .tab {
-      padding: 15px 4px 13px;
-      margin-right: 26px;
+      padding: 16px 2px 14px;
       font-size: 13.5px;
       font-weight: 600;
       color: var(--muted-2);
@@ -205,163 +275,320 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      transition: color 0.15s;
     }
+    .tab:hover { color: var(--ink); }
     .tab.active {
       color: var(--ink);
       border-bottom-color: var(--brand);
     }
+
     .seg {
       display: flex;
       background: #F1F5F9;
       padding: 4px;
-      border-radius: 10px;
+      border-radius: 11px;
       gap: 4px;
+      height: 46px;
+      align-items: center;
     }
     .seg button {
       flex: 1;
-      height: 36px;
+      height: 38px;
       border: none;
-      border-radius: 7px;
+      border-radius: 8px;
       background: transparent;
       font-size: 12px;
       font-weight: 600;
       color: var(--muted);
       cursor: pointer;
+      transition: all 0.15s;
     }
     .seg button.active {
       background: #fff;
       color: var(--ink);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      box-shadow: 0 1px 3px rgba(10, 18, 32, 0.08);
     }
+
+    .check-helper {
+      background: #F8FAFC;
+      border: 1px dashed #CBD5E1;
+      border-radius: 11px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 4px 0 18px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
     .alert {
-      padding: 12px 15px;
-      border-radius: 10px;
+      padding: 13px 16px;
+      border-radius: 12px;
       font-size: 13px;
-      margin-bottom: 16px;
+      margin-bottom: 18px;
       display: none;
+      align-items: center;
+      gap: 10px;
+      font-weight: 500;
     }
-    .alert.error { display: block; background: var(--red-soft); color: var(--red); border: 1px solid #FECDCA; }
-    .alert.ok { display: block; background: var(--brand-soft); color: var(--brand-700); border: 1px solid #CDEBDD; }
-    .kv { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13px; border-bottom: 1px solid #F1F5F9; }
+    .alert.error { display: flex; background: var(--red-soft); color: var(--red); border: 1px solid #FECDCA; }
+    .alert.ok { display: flex; background: var(--brand-soft); color: var(--brand-700); border: 1px solid var(--brand-border); }
+
+    .kv {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 0;
+      font-size: 13px;
+      border-bottom: 1px solid var(--line-2);
+    }
     .kv:last-child { border-bottom: none; }
+
+    .feature-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 10px 0;
+    }
+    .feature-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: var(--brand-soft);
+      color: var(--brand-700);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .footer {
+      border-top: 1px solid var(--line);
+      background: #fff;
+      padding: 18px 0;
+      font-size: 12px;
+      color: var(--muted-2);
+    }
+    .footer a { color: var(--muted); text-decoration: none; }
+    .footer a:hover { color: var(--ink); }
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
+  <!-- Inline Vector SVG Icon Sprite -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-mark" viewBox="0 0 24 24" fill="none">
+        <path d="M4 19V7.5L12 14l8-6.5V19" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24" fill="none">
+        <path d="M4.5 12.5l5 5 10-11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24" fill="none">
+        <path d="M12 3L5 5.8v5.6c0 4.2 2.9 7.6 7 9.6 4.1-2 7-5.4 7-9.6V5.8L12 3z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+        <path d="M9 12.2l2.1 2.1 4-4.3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24" fill="none">
+        <rect x="4.5" y="10" width="15" height="10.5" rx="2.5" stroke="currentColor" stroke-width="1.9"/>
+        <path d="M8 10V7.8a4 4 0 0 1 8 0V10" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="i-bank" viewBox="0 0 24 24" fill="none">
+        <path d="M3.5 9.5L12 4l8.5 5.5M5 10v8.5M9.5 10v8.5M14.5 10v8.5M19 10v8.5M3 19.5h18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24" fill="none">
+        <path d="M13.5 3L5.8 13.2h5.1L10.5 21l7.7-10.2h-5.1L13.5 3z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.9"/>
+        <path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="i-mail" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="1.9"/>
+        <path d="M3.5 7l8.5 6 8.5-6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-building" viewBox="0 0 24 24" fill="none">
+        <path d="M4 20h16M6 20V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v15M9 8h2M13 8h2M9 12h2M13 12h2M10 20v-4h4v4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none">
+        <path d="M4.5 12h14M13 6.5L18.5 12 13 17.5" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24" fill="none">
+        <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.9"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24" fill="none">
+        <path d="M12 4.5L21 19.5H3L12 4.5z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+        <path d="M12 10v4.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="12" cy="17" r="1" fill="currentColor"/>
+      </symbol>
+    </defs>
+  </svg>
+
   <header class="topbar">
     <div class="wrap row between">
       <a href="/" class="brand">
-        <span class="mark">M</span>
+        <span class="mark"><svg width="18" height="18"><use href="#i-mark"/></svg></span>
         <span id="brandTitle">Meridian Pay</span>
       </a>
+
       <div class="steps">
-        <div class="step now" id="st1"><span class="n">1</span>Business &amp; Email</div>
+        <div class="step now" id="st1"><span class="n">1</span>Business Profile</div>
         <span class="step-line"></span>
-        <div class="step" id="st2"><span class="n">2</span>Verify Bank</div>
+        <div class="step" id="st2"><span class="n">2</span>Bank Verification</div>
         <span class="step-line"></span>
         <div class="step" id="st3"><span class="n">3</span>Auto-Debit Active</div>
       </div>
-      <div class="row gap12">
-        <span class="pill pill-grey" id="envBadge">Checkbook v3</span>
-        <a href="/admin" class="btn btn-secondary btn-sm">Admin Portal →</a>
+
+      <div class="row gap10">
+        <span class="pill pill-green">
+          <svg width="12" height="12"><use href="#i-lock"/></svg>
+          256-Bit TLS Encrypted
+        </span>
       </div>
     </div>
   </header>
 
   <main class="wrap main-grid">
-    <!-- LEFT COLUMN: ACTIVE STEP -->
+    <!-- LEFT COLUMN: ACTIVE VERIFICATION WORKFLOW -->
     <div>
-      <div id="alertBox" class="alert"></div>
+      <div id="alertBox" class="alert">
+        <svg width="16" height="16" id="alertIcon"><use href="#i-alert"/></svg>
+        <span id="alertText"></span>
+      </div>
 
       <!-- STEP 1: BUSINESS NAME + EMAIL ONLY -->
       <section id="step1Card" class="card card-pad">
-        <div class="row between" style="margin-bottom:10px">
-          <span class="pill pill-green">Guest Verification · No Login Needed</span>
+        <div class="row between" style="margin-bottom:12px">
+          <span class="pill pill-green">
+            <svg width="12" height="12"><use href="#i-shield"/></svg>
+            Guest Bank Verification &middot; No Account Required
+          </span>
           <span class="micro">Step 1 of 2</span>
         </div>
-        <h1>Verify your business bank once.</h1>
-        <p class="sub" style="margin-bottom:22px">
-          Enter only your <b>Business Name</b> and <b>Email</b> below. Once your bank is verified via Instant Login or Micro-Deposits, invoices we issue will be debited automatically and we’ll email you every status update — no need to click “Pay”.
+
+        <h1>Verify your business bank account</h1>
+        <p class="sub" style="margin-bottom:24px">
+          Enter your business name and billing email below to link and verify your bank account. Once verified, invoices issued to your business are processed automatically via ACH and you receive instant email receipts at every status update.
         </p>
 
         <form id="profileForm">
           <div class="field">
-            <label class="label">Business Name</label>
-            <input type="text" id="businessName" placeholder="e.g. Acme Logistics LLC" required />
-            <span class="micro">Provisions your Checkbook Marketplace profile (<span class="mono">POST /v3/user</span>).</span>
+            <label class="label" for="businessName">
+              <span>Business Legal or DBA Name</span>
+              <span class="micro">Required</span>
+            </label>
+            <div class="input-wrap has-icon">
+              <span class="input-icon"><svg width="16" height="16"><use href="#i-building"/></svg></span>
+              <input type="text" id="businessName" placeholder="Northwind Studio LLC" autocomplete="organization" required />
+            </div>
           </div>
 
           <div class="field">
-            <label class="label">Business Email</label>
-            <input type="email" id="businessEmail" placeholder="billing@acmelogistics.com" required />
-            <span class="micro">Receives micro-deposit links, auto-debit receipts, and settlement status updates.</span>
+            <label class="label" for="businessEmail">
+              <span>Business Billing Email</span>
+              <span class="micro">Where receipts &amp; status updates are sent</span>
+            </label>
+            <div class="input-wrap has-icon">
+              <span class="input-icon"><svg width="16" height="16"><use href="#i-mail"/></svg></span>
+              <input type="email" id="businessEmail" placeholder="billing@northwind.co" autocomplete="email" required />
+            </div>
           </div>
 
-          <label class="check-row">
+          <label class="mandate-box">
             <input type="checkbox" id="mandateCheck" checked required />
             <span>
-              I authorize automatic ACH debits from my verified business bank account for invoices issued to my business, and agree to receive payment &amp; settlement status notifications by email.
+              I confirm that I am authorized to link a bank account on behalf of this business and authorize <b>standing ACH auto-debits</b> for approved invoices once my bank account is verified. Email notifications will be sent automatically whenever a payment is initiated or settled.
             </span>
           </label>
 
           <button type="submit" class="btn btn-brand btn-block" id="step1Btn">
-            Continue to Bank Verification →
+            <span>Continue to Bank Verification</span>
+            <svg width="15" height="15"><use href="#i-arrow-right"/></svg>
           </button>
         </form>
       </section>
 
-      <!-- STEP 2: STANDARD BANK VERIFICATION (MANUAL MICRO-DEPOSITS + CHECKBOOK INSTANT IAV) -->
+      <!-- STEP 2: BANK VERIFICATION (MICRO-DEPOSITS + INSTANT IAV) -->
       <section id="step2Card" class="card hidden">
         <div class="tabs">
           <div class="tab active" id="tabManualBtn" onclick="switchBankTab('manual')">
-            <span>🏦 Routing &amp; Account (Micro-Deposits)</span>
-            <span class="pill pill-amber" style="height:20px;font-size:10px">Standard</span>
+            <svg width="15" height="15"><use href="#i-bank"/></svg>
+            <span>Routing &amp; Account (Micro-Deposits)</span>
+            <span class="pill pill-amber" style="height:20px;font-size:10px;padding:0 7px">1 Business Day</span>
           </div>
           <div class="tab" id="tabIavBtn" onclick="switchBankTab('iav')">
-            <span>⚡ Instant Bank Login (Checkbook IAV)</span>
-            <span class="pill pill-green" style="height:20px;font-size:10px">~10 sec</span>
+            <svg width="15" height="15"><use href="#i-bolt"/></svg>
+            <span>Instant Bank Verification</span>
+            <span class="pill pill-green" style="height:20px;font-size:10px;padding:0 7px">Instant</span>
           </div>
         </div>
 
         <!-- TAB A: MANUAL ROUTING & ACCOUNT (MICRO-DEPOSITS) -->
         <div id="manualPane" class="card-pad">
           <div class="row between" style="margin-bottom:6px">
-            <h2>Enter Routing &amp; Account Number</h2>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="fillDemoManual()">Fill Demo Routing/Acct</button>
+            <h2>Link via Routing &amp; Account Number</h2>
+            <span class="pill pill-grey">Works with all U.S. banks</span>
           </div>
           <p class="sub" style="margin-bottom:20px">
-            Submits directly through our Netlify Function (<span class="mono">POST /v3/account/bank</span> + <span class="mono">POST /v3/account/bank/release</span>) using your per-customer Checkbook key to initiate two micro-deposits under $1.00.
+            We will send two small micro-deposit credits (each under $1.00) to your bank account. Confirm the two amounts once they appear on your statement to complete verification.
           </p>
 
           <form id="manualBankForm">
-            <div style="display:grid;grid-template-columns:1fr 260px;gap:14px">
+            <div style="display:grid;grid-template-columns:1fr 270px;gap:14px">
               <div class="field">
-                <label class="label">9-Digit Routing Number</label>
-                <input type="text" id="routingInput" placeholder="322271627" maxlength="9" required />
+                <label class="label" for="routingInput">
+                  <span>9-Digit ABA Routing Number</span>
+                </label>
+                <div class="input-wrap">
+                  <input type="text" id="routingInput" placeholder="e.g. 322271627" maxlength="9" inputmode="numeric" required oninput="onRoutingInput()" />
+                  <span class="input-suffix" id="routingBankBadge" style="color:var(--brand-700)"></span>
+                </div>
               </div>
+
               <div class="field">
-                <label class="label">Account Type (<span class="mono">Checkbook v3</span>)</label>
+                <label class="label">Account Classification</label>
                 <div class="seg" id="acctTypeSeg">
-                  <button type="button" class="active" data-val="BUSINESS" onclick="setAcctType('BUSINESS')">BUSINESS</button>
-                  <button type="button" data-val="CHECKING" onclick="setAcctType('CHECKING')">CHECKING</button>
-                  <button type="button" data-val="PERSONAL" onclick="setAcctType('PERSONAL')">PERSONAL</button>
+                  <button type="button" class="active" data-val="BUSINESS" onclick="setAcctType('BUSINESS')">Business</button>
+                  <button type="button" data-val="CHECKING" onclick="setAcctType('CHECKING')">Checking</button>
+                  <button type="button" data-val="PERSONAL" onclick="setAcctType('PERSONAL')">Personal</button>
                 </div>
               </div>
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
               <div class="field">
-                <label class="label">Account Number</label>
-                <input type="text" id="accountInput" placeholder="000123456789" required />
+                <label class="label" for="accountInput">Account Number</label>
+                <input type="text" id="accountInput" placeholder="Enter account number" inputmode="numeric" required oninput="onAccountInput()" />
               </div>
               <div class="field">
-                <label class="label">Bank Name (Optional)</label>
-                <input type="text" id="bankNameInput" placeholder="JPMorgan Chase" />
+                <label class="label" for="accountConfirmInput">
+                  <span>Confirm Account Number</span>
+                  <span id="acctMatchLabel" class="micro"></span>
+                </label>
+                <input type="text" id="accountConfirmInput" placeholder="Re-enter account number" inputmode="numeric" required oninput="onAccountInput()" />
               </div>
             </div>
 
-            <button type="submit" class="btn btn-brand btn-block" id="manualSubmitBtn" style="margin-top:8px">
-              Submit Bank &amp; Send Micro-Deposits →
+            <div class="field">
+              <label class="label" for="bankNameInput">
+                <span>Financial Institution Name</span>
+                <span class="micro">Auto-detected for major banks</span>
+              </label>
+              <input type="text" id="bankNameInput" placeholder="e.g. JPMorgan Chase Bank, N.A." />
+            </div>
+
+            <div class="check-helper">
+              <div class="row gap10">
+                <svg width="16" height="16" style="color:var(--muted)"><use href="#i-lock"/></svg>
+                <span>Numbers on the bottom of your check: <b class="mono">|: 9-Digit Routing :|</b> followed by <b class="mono">Account Number ||</b></span>
+              </div>
+              <span class="mono" style="color:var(--brand-700);font-weight:600">ACH Protected</span>
+            </div>
+
+            <button type="submit" class="btn btn-brand btn-block" id="manualSubmitBtn">
+              <span>Initiate Micro-Deposit Verification</span>
+              <svg width="15" height="15"><use href="#i-arrow-right"/></svg>
             </button>
           </form>
         </div>
@@ -369,34 +596,38 @@
         <!-- TAB B: CHECKBOOK BUILT-IN INSTANT VERIFICATION (IAV) -->
         <div id="iavPane" class="card-pad hidden">
           <div class="row between" style="margin-bottom:6px">
-            <h2>Instant Verification via Checkbook API</h2>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="fillDemoIav()">Fill Sandbox (user_good / pass_good)</button>
+            <h2>Instant Bank Verification</h2>
+            <span class="pill pill-green">Verifies in seconds</span>
           </div>
           <p class="sub" style="margin-bottom:20px">
-            Handled 100% by Checkbook’s API (<span class="mono">GET /v3/account/bank/institutions</span> &rarr; <span class="mono">POST /v3/account/bank/iav</span> &rarr; <span class="mono">POST /v3/account/bank</span>) using only your Checkbook API key. Marks your bank <b>VERIFIED</b> immediately.
+            Select your financial institution and authenticate directly to verify ownership immediately without waiting for micro-deposits.
           </p>
 
           <form id="iavBankForm">
             <div class="field">
-              <label class="label">Select Your Bank Institution</label>
-              <select id="institutionSelect" required>
-                <option value="">Loading supported banks from Checkbook…</option>
-              </select>
+              <label class="label" for="institutionSelect">Select Your Financial Institution</label>
+              <div class="input-wrap has-icon">
+                <span class="input-icon"><svg width="16" height="16"><use href="#i-bank"/></svg></span>
+                <select id="institutionSelect" required>
+                  <option value="">Loading supported institutions…</option>
+                </select>
+              </div>
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
               <div class="field">
-                <label class="label">Bank Online User ID</label>
-                <input type="text" id="iavLogin" placeholder="Sandbox: user_good" required />
+                <label class="label" for="iavLogin">Online Banking User ID</label>
+                <input type="text" id="iavLogin" placeholder="Enter your bank User ID" required />
               </div>
               <div class="field">
-                <label class="label">Bank Online Password</label>
-                <input type="password" id="iavPassword" placeholder="Sandbox: pass_good" required />
+                <label class="label" for="iavPassword">Online Banking Password</label>
+                <input type="password" id="iavPassword" placeholder="Enter your bank Password" required />
               </div>
             </div>
 
             <button type="submit" class="btn btn-brand btn-block" id="iavSubmitBtn" style="margin-top:8px">
-              Verify Bank Instantly (~10s) →
+              <span>Authenticate &amp; Verify Bank Instantly</span>
+              <svg width="15" height="15"><use href="#i-arrow-right"/></svg>
             </button>
           </form>
         </div>
@@ -404,109 +635,202 @@
 
       <!-- STEP 3: MICRO-DEPOSITS PENDING -> CONFIRM AMOUNTS -->
       <section id="step3PendingCard" class="card card-pad hidden">
-        <div class="row between" style="margin-bottom:10px">
-          <span class="pill pill-amber">⏳ Micro-Deposits Sent (PENDING)</span>
-          <button type="button" class="btn btn-secondary btn-sm" onclick="fillSandboxAmounts()">Fill Sandbox ($0.07 &amp; $0.15)</button>
+        <div class="row between" style="margin-bottom:12px">
+          <span class="pill pill-amber">
+            <svg width="12" height="12"><use href="#i-clock"/></svg>
+            Micro-Deposits Initiated &middot; Pending Confirmation
+          </span>
+          <span class="pill pill-grey" id="attemptsBadge">3 attempts remaining</span>
         </div>
-        <h2>Confirm the two micro-deposit amounts</h2>
-        <p class="sub" style="margin-bottom:18px">
-          We triggered <span class="mono">POST /v3/account/bank/release</span> to send two credits under $1.00 to account <b id="pendingLast4">•••• 6789</b>. We also emailed a return link to <b id="pendingEmail"></b> so you can come back tomorrow on any device.
+
+        <h2>Confirm your two micro-deposit amounts</h2>
+        <p class="sub" style="margin-bottom:20px">
+          We sent two small credits under $1.00 to account <b id="pendingLast4">•••• 6789</b>. We also emailed a direct verification link to <b id="pendingEmail"></b> so you can return to this page as soon as the credits post to your statement.
         </p>
 
-        <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:18px">
-          <div class="micro" style="font-weight:600;color:var(--ink-2)">Your Bookmark / Magic Return Link (for returning next business day):</div>
-          <div class="row between" style="margin-top:4px;gap:10px">
+        <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:22px">
+          <div class="row between" style="margin-bottom:6px">
+            <span style="font-size:12px;font-weight:600;color:var(--ink-2)">Your Private Verification Return Link</span>
+            <span class="micro">Bookmark or open from your email</span>
+          </div>
+          <div class="row between" style="gap:10px">
             <code class="mono" id="magicLinkDisplay" style="color:var(--blue);word-break:break-all"></code>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="copyMagicLink()">Copy Link</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="copyMagicLink()">
+              <svg width="13" height="13"><use href="#i-copy"/></svg>
+              <span>Copy Link</span>
+            </button>
           </div>
         </div>
 
         <form id="verifyAmountsForm">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
             <div class="field">
-              <label class="label">First Deposit Amount ($ USD)</label>
-              <input type="number" step="0.01" min="0.01" max="0.99" id="amt1Input" placeholder="0.07" required />
-              <span class="micro">Sandbox default: <b>0.07</b></span>
+              <label class="label" for="amt1Input">First Credit Amount ($ USD)</label>
+              <input type="number" step="0.01" min="0.01" max="0.99" id="amt1Input" placeholder="0.00" required />
+              <span class="micro">Enter exact amount under $1.00 (e.g. 0.07)</span>
             </div>
             <div class="field">
-              <label class="label">Second Deposit Amount ($ USD)</label>
-              <input type="number" step="0.01" min="0.01" max="0.99" id="amt2Input" placeholder="0.15" required />
-              <span class="micro">Sandbox default: <b>0.15</b></span>
+              <label class="label" for="amt2Input">Second Credit Amount ($ USD)</label>
+              <input type="number" step="0.01" min="0.01" max="0.99" id="amt2Input" placeholder="0.00" required />
+              <span class="micro">Enter exact amount under $1.00 (e.g. 0.15)</span>
             </div>
           </div>
 
           <button type="submit" class="btn btn-brand btn-block" id="verifySubmitBtn" style="margin-top:8px">
-            Confirm Amounts &amp; Verify Bank →
+            <span>Confirm Amounts &amp; Complete Verification</span>
+            <svg width="15" height="15"><use href="#i-arrow-right"/></svg>
           </button>
         </form>
       </section>
 
-      <!-- STEP 4: BANK VERIFIED & AUTO-DEBIT ACTIVE -->
+      <!-- STEP 4: BANK VERIFIED & AUTO-DEBIT MANDATE ACTIVE -->
       <section id="step4VerifiedCard" class="card card-pad hidden">
-        <div class="row between" style="margin-bottom:12px">
-          <span class="pill pill-green">✓ BANK VERIFIED · AUTO-DEBIT READY</span>
-          <span class="mono" id="verifiedMethodBadge"></span>
+        <div class="row between" style="margin-bottom:14px">
+          <span class="pill pill-green">
+            <svg width="12" height="12"><use href="#i-check"/></svg>
+            Bank Account Verified &middot; Standing Auto-Debit Active
+          </span>
+          <span class="mono" id="verifiedMethodBadge" style="color:var(--muted-2)"></span>
         </div>
-        <h2>Your bank account is verified and ready.</h2>
-        <p class="sub" style="margin-bottom:20px">
-          <b>You are completely done.</b> Whenever an invoice is issued to <b id="verBizName"></b>, payment will be debited automatically from <b id="verBankLabel"></b> and we will email your receipt and settlement status updates to <b id="verEmail"></b>. You never have to click “Pay”.
+
+        <h2>Verification complete — you are all set</h2>
+        <p class="sub" style="margin-bottom:22px">
+          Your bank account <b id="verBankLabel"></b> is now verified for <b id="verBizName"></b>. Whenever an invoice is issued to your business, payment will be debited automatically via ACH and status receipts will be emailed to <b id="verEmail"></b>.
         </p>
 
-        <div style="background:var(--brand-soft);border:1px solid #CDEBDD;border-radius:12px;padding:16px 18px;margin-bottom:22px">
-          <div style="font-weight:600;color:var(--brand-700);font-size:14px">What happens when an invoice is issued to you:</div>
-          <ol style="margin:8px 0 0 18px;padding:0;color:#075B40;font-size:13px;line-height:1.65">
-            <li>Our team issues the invoice from the Admin Portal (<span class="mono">POST /v3/invoice</span>).</li>
-            <li>Netlify immediately triggers auto-debit from your verified bank (<span class="mono">POST /v3/invoice/payment</span>).</li>
-            <li>You receive an automatic email confirming payment is <b>IN_PROCESS</b>, followed by a <b>PAID</b> receipt when ACH settles.</li>
-          </ol>
+        <div style="background:var(--brand-soft);border:1px solid var(--brand-border);border-radius:14px;padding:18px 20px;margin-bottom:22px">
+          <div class="row gap8" style="font-weight:650;color:var(--brand-800);font-size:14px;margin-bottom:8px">
+            <svg width="16" height="16"><use href="#i-shield"/></svg>
+            <span>Automatic Invoice &amp; Receipt Schedule</span>
+          </div>
+          <div style="font-size:13px;color:var(--brand-800);line-height:1.65">
+            <div>1. <b>No Manual Checkout Required:</b> You do not need to log in or click a payment button when billed.</div>
+            <div>2. <b>Instant Initiation Notice:</b> You receive an email receipt the moment an invoice is issued and ACH auto-debit starts (<span class="mono">IN_PROCESS</span>).</div>
+            <div>3. <b>Settlement Confirmation:</b> You receive a final paid receipt email automatically once the ACH transfer settles (<span class="mono">PAID</span>).</div>
+          </div>
         </div>
 
         <div class="row gap12">
-          <a href="/admin" class="btn btn-brand">Open Admin Portal to Issue &amp; Auto-Debit Invoice →</a>
-          <button type="button" class="btn btn-secondary" onclick="startFreshGuest()">Verify Another Business</button>
+          <button type="button" class="btn btn-secondary" onclick="window.print()">Print Mandate Confirmation</button>
+          <button type="button" class="btn btn-secondary" onclick="startFreshGuest()">Verify Another Business Account</button>
         </div>
       </section>
     </div>
 
-    <!-- RIGHT COLUMN: LIVE SESSION SUMMARY & FLOW GUARANTEES -->
+    <!-- RIGHT COLUMN: SESSION SUMMARY & TRUST GUARANTEES -->
     <aside>
-      <div class="card card-pad" style="margin-bottom:16px">
+      <div class="card card-pad" style="margin-bottom:18px">
         <div class="row between" style="margin-bottom:12px">
-          <h3>Current Guest Profile</h3>
+          <h3>Verification Summary</h3>
           <span class="pill pill-grey" id="sideStatusPill">Step 1</span>
         </div>
-        <div class="kv"><span class="micro">Business Name</span><strong id="sideBiz" style="font-size:13px">—</strong></div>
-        <div class="kv"><span class="micro">Email</span><span id="sideEmail" style="font-size:13px">—</span></div>
-        <div class="kv"><span class="micro">Checkbook <span class="mono">user_id</span></span><span class="mono" id="sideUserId">—</span></div>
-        <div class="kv"><span class="micro">Bank Account</span><span id="sideBank" style="font-size:13px">—</span></div>
-        <div class="kv"><span class="micro">Invoice Gate</span><strong id="sideGate" style="font-size:12.5px;color:var(--amber)">Locked until VERIFIED</strong></div>
+        <div class="kv"><span class="micro">Business</span><strong id="sideBiz" style="font-size:13px">—</strong></div>
+        <div class="kv"><span class="micro">Billing Email</span><span id="sideEmail" style="font-size:13px">—</span></div>
+        <div class="kv"><span class="micro">Account ID</span><span class="mono" id="sideUserId">—</span></div>
+        <div class="kv"><span class="micro">Linked Bank</span><span id="sideBank" style="font-size:13px">—</span></div>
+        <div class="kv"><span class="micro">Auto-Debit Status</span><strong id="sideGate" style="font-size:12.5px;color:var(--amber)">Awaiting Verification</strong></div>
       </div>
 
       <div class="card card-pad">
-        <h3 style="margin-bottom:10px">How 403 Errors Are Prevented</h3>
-        <div class="micro" style="display:flex;flex-direction:column;gap:10px">
-          <div><b>1. Per-Customer Key Isolation:</b> Netlify creates a Checkbook Marketplace user (<span class="mono">POST /v3/user</span>) with our Owner key, then signs <span class="mono">/bank</span>, <span class="mono">/release</span>, <span class="mono">/verify</span>, and <span class="mono">/invoice/payment</span> with <b>that customer’s</b> returned <span class="mono">key:secret</span>.</div>
-          <div><b>2. Built-In Checkbook IAV + Micro-Deposits:</b> Both instant bank login (<span class="mono">/v3/account/bank/iav</span>) and manual routing/account (<span class="mono">/v3/account/bank</span>) run through Checkbook’s API with zero external SDK keys required.</div>
-          <div><b>3. Programmatic Auto-Debit:</b> Invoices target the internal <span class="mono">user_id</span> slug so Netlify can auto-debit immediately upon invoice creation.</div>
+        <h3 style="margin-bottom:8px">Security &amp; Compliance</h3>
+        <div class="feature-row">
+          <div class="feature-icon"><svg width="16" height="16"><use href="#i-lock"/></svg></div>
+          <div>
+            <div style="font-size:13px;font-weight:600">Encrypted Credential Custody</div>
+            <div class="micro">Bank verification runs over TLS 1.3 through Checkbook.io’s regulated U.S. payment rails.</div>
+          </div>
+        </div>
+        <div class="feature-row">
+          <div class="feature-icon"><svg width="16" height="16"><use href="#i-bolt"/></svg></div>
+          <div>
+            <div style="font-size:13px;font-weight:600">Instant or Micro-Deposit</div>
+            <div class="micro">Verify immediately with online banking or confirm two small credits within 1 business day.</div>
+          </div>
+        </div>
+        <div class="feature-row">
+          <div class="feature-icon"><svg width="16" height="16"><use href="#i-mail"/></svg></div>
+          <div>
+            <div style="font-size:13px;font-weight:600">Automated Status Receipts</div>
+            <div class="micro">Every invoice debit and settlement update is sent directly to your billing email.</div>
+          </div>
         </div>
       </div>
     </aside>
   </main>
 
+  <footer class="footer">
+    <div class="wrap row between">
+      <span>&copy; 2026 <span id="footerBrand">Meridian Pay</span> &middot; Commercial ACH &amp; Bank Verification Portal</span>
+      <div class="row gap16">
+        <a href="#" id="sandboxFillTrigger" class="hidden" onclick="fillSandboxQuickData(event)">Populate Sandbox Test Data</a>
+        <a href="/admin">Admin Portal</a>
+      </div>
+    </div>
+  </footer>
+
   <script>
     let currentCustomer = null;
     let selectedAcctType = 'BUSINESS';
     let institutionsList = [];
+    let currentEnv = 'sandbox';
+
+    const ABA_BANKS = {
+      '322271627': 'JPMorgan Chase Bank, N.A.',
+      '021000021': 'JPMorgan Chase Bank, N.A.',
+      '026009593': 'Bank of America, N.A.',
+      '121000248': 'Wells Fargo Bank, N.A.',
+      '021000089': 'Citibank, N.A.',
+      '122105155': 'U.S. Bank, N.A.',
+      '043000096': 'PNC Bank, N.A.',
+      '051405515': 'Capital One, N.A.',
+      '031101266': 'TD Bank, N.A.',
+      '061000104': 'Truist Bank',
+      '011401533': 'Citizens Bank, N.A.',
+      '121140399': 'Silicon Valley Bank',
+      '091311229': 'Choice Financial Group (Mercury)'
+    };
 
     function showAlert(msg, type = 'error') {
       const box = document.getElementById('alertBox');
+      const txt = document.getElementById('alertText');
+      const icon = document.getElementById('alertIcon');
       box.className = 'alert ' + type;
-      box.textContent = msg;
-      box.style.display = 'block';
+      txt.textContent = msg;
+      icon.innerHTML = `<use href="${type === 'ok' ? '#i-check' : '#i-alert'}"/>`;
     }
+
     function clearAlert() {
-      const box = document.getElementById('alertBox');
-      box.style.display = 'none';
+      document.getElementById('alertBox').className = 'alert';
+    }
+
+    function onRoutingInput() {
+      const val = document.getElementById('routingInput').value.replace(/\D/g, '');
+      document.getElementById('routingInput').value = val;
+      const badge = document.getElementById('routingBankBadge');
+      const bankInput = document.getElementById('bankNameInput');
+      if (ABA_BANKS[val]) {
+        badge.textContent = ABA_BANKS[val];
+        if (!bankInput.value) bankInput.value = ABA_BANKS[val];
+      } else if (val.length === 9) {
+        badge.textContent = '9-Digit ABA';
+      } else {
+        badge.textContent = '';
+      }
+    }
+
+    function onAccountInput() {
+      const a1 = document.getElementById('accountInput').value.trim();
+      const a2 = document.getElementById('accountConfirmInput').value.trim();
+      const lbl = document.getElementById('acctMatchLabel');
+      if (!a2) {
+        lbl.textContent = '';
+      } else if (a1 === a2) {
+        lbl.textContent = '✓ Matched';
+        lbl.style.color = 'var(--brand-700)';
+      } else {
+        lbl.textContent = 'Does not match yet';
+        lbl.style.color = 'var(--amber)';
+      }
     }
 
     function setAcctType(val) {
@@ -568,34 +892,39 @@
         return;
       }
 
+      st1.innerHTML = `<span class="n"><svg width="12" height="12"><use href="#i-check"/></svg></span>Business Profile`;
+
       if (c.bankStatus === 'UNLINKED') {
         s2.classList.remove('hidden');
         st1.className = 'step done'; st2.className = 'step now'; st3.className = 'step';
-        document.getElementById('sideStatusPill').textContent = 'Awaiting Bank';
+        document.getElementById('sideStatusPill').textContent = 'Step 2 · Link Bank';
         document.getElementById('sideStatusPill').className = 'pill pill-blue';
-        document.getElementById('sideGate').textContent = 'Locked until VERIFIED';
+        document.getElementById('sideGate').textContent = 'Awaiting Bank Link';
         document.getElementById('sideGate').style.color = 'var(--amber)';
         loadInstitutions();
       } else if (c.bankStatus === 'PENDING') {
         s3.classList.remove('hidden');
         st1.className = 'step done'; st2.className = 'step now'; st3.className = 'step';
-        document.getElementById('pendingLast4').textContent = '•••• ' + c.accountLast4;
+        document.getElementById('pendingLast4').textContent = `${c.bankName || 'Bank'} (•••• ${c.accountLast4})`;
         document.getElementById('pendingEmail').textContent = c.email;
+        document.getElementById('attemptsBadge').textContent = `${c.attemptsRemaining ?? 3} attempts remaining`;
         document.getElementById('magicLinkDisplay').textContent = window.location.origin + '/?token=' + c.token;
-        document.getElementById('sideStatusPill').textContent = 'PENDING Micro-Deposits';
+        document.getElementById('sideStatusPill').textContent = 'Pending Micro-Deposits';
         document.getElementById('sideStatusPill').className = 'pill pill-amber';
-        document.getElementById('sideGate').textContent = 'Waiting for 2 amounts';
+        document.getElementById('sideGate').textContent = 'Awaiting 2 Amounts';
         document.getElementById('sideGate').style.color = 'var(--amber)';
       } else if (c.bankStatus === 'VERIFIED') {
         s4.classList.remove('hidden');
+        st2.innerHTML = `<span class="n"><svg width="12" height="12"><use href="#i-check"/></svg></span>Bank Verification`;
+        st3.innerHTML = `<span class="n"><svg width="12" height="12"><use href="#i-check"/></svg></span>Auto-Debit Active`;
         st1.className = 'step done'; st2.className = 'step done'; st3.className = 'step done';
         document.getElementById('verBizName').textContent = c.businessName;
         document.getElementById('verBankLabel').textContent = `${c.bankName || 'Bank'} (•••• ${c.accountLast4})`;
         document.getElementById('verEmail').textContent = c.email;
-        document.getElementById('verifiedMethodBadge').textContent = c.verificationMethod === 'CHECKBOOK_IAV' ? 'Verified via Checkbook IAV' : 'Verified via Micro-Deposits';
-        document.getElementById('sideStatusPill').textContent = 'VERIFIED';
+        document.getElementById('verifiedMethodBadge').textContent = c.verificationMethod === 'CHECKBOOK_IAV' ? 'Instant IAV' : 'Micro-Deposits Verified';
+        document.getElementById('sideStatusPill').textContent = 'Verified';
         document.getElementById('sideStatusPill').className = 'pill pill-green';
-        document.getElementById('sideGate').textContent = 'Unlocked · Auto-Debit Ready';
+        document.getElementById('sideGate').textContent = 'Active · Ready for Billing';
         document.getElementById('sideGate').style.color = 'var(--brand-700)';
       }
     }
@@ -606,7 +935,7 @@
       clearAlert();
       const btn = document.getElementById('step1Btn');
       btn.disabled = true;
-      btn.textContent = 'Provisioning Checkbook Marketplace user…';
+      btn.innerHTML = `<span>Setting up verification session…</span>`;
       try {
         const res = await fetch('/api/guest/start', {
           method: 'POST',
@@ -623,7 +952,7 @@
         showAlert(err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Continue to Bank Verification →';
+        btn.innerHTML = `<span>Continue to Bank Verification</span><svg width="15" height="15"><use href="#i-arrow-right"/></svg>`;
       }
     });
 
@@ -631,9 +960,15 @@
     document.getElementById('manualBankForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       clearAlert();
+      const a1 = document.getElementById('accountInput').value.trim();
+      const a2 = document.getElementById('accountConfirmInput').value.trim();
+      if (a1 !== a2) {
+        showAlert('Account Number and Confirm Account Number do not match.');
+        return;
+      }
       const btn = document.getElementById('manualSubmitBtn');
       btn.disabled = true;
-      btn.textContent = 'Adding bank & releasing micro-deposits…';
+      btn.innerHTML = `<span>Linking bank &amp; releasing micro-deposits…</span>`;
       try {
         const res = await fetch('/api/bank/manual', {
           method: 'POST',
@@ -641,21 +976,21 @@
           body: JSON.stringify({
             token: currentCustomer.token,
             routing: document.getElementById('routingInput').value,
-            account: document.getElementById('accountInput').value,
-            bankName: document.getElementById('bankNameInput').value || 'JPMorgan Chase',
+            account: a1,
+            bankName: document.getElementById('bankNameInput').value || 'Business Checking',
             type: selectedAcctType,
             origin: window.location.origin
           })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to add bank');
+        if (!res.ok) throw new Error(data.error || 'Failed to link bank account');
         renderCustomerState(data.customer);
-        showAlert('Two micro-deposits initiated! Return link also sent to ' + data.customer.email, 'ok');
+        showAlert('Two micro-deposit credits have been initiated and your return link has been emailed to ' + data.customer.email + '.', 'ok');
       } catch (err) {
         showAlert(err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Submit Bank & Send Micro-Deposits →';
+        btn.innerHTML = `<span>Initiate Micro-Deposit Verification</span><svg width="15" height="15"><use href="#i-arrow-right"/></svg>`;
       }
     });
 
@@ -665,7 +1000,7 @@
       clearAlert();
       const btn = document.getElementById('iavSubmitBtn');
       btn.disabled = true;
-      btn.textContent = 'Verifying instantly with Checkbook IAV…';
+      btn.innerHTML = `<span>Authenticating with financial institution…</span>`;
       try {
         const sel = document.getElementById('institutionSelect');
         const instName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].getAttribute('data-name') : 'Bank';
@@ -682,14 +1017,14 @@
           })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Instant verification failed');
+        if (!res.ok) throw new Error(data.error || 'Instant bank verification failed');
         renderCustomerState(data.customer);
-        showAlert('Bank verified instantly via Checkbook IAV!', 'ok');
+        showAlert('Your bank account has been verified.', 'ok');
       } catch (err) {
         showAlert(err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Verify Bank Instantly (~10s) →';
+        btn.innerHTML = `<span>Authenticate &amp; Verify Bank Instantly</span><svg width="15" height="15"><use href="#i-arrow-right"/></svg>`;
       }
     });
 
@@ -699,7 +1034,7 @@
       clearAlert();
       const btn = document.getElementById('verifySubmitBtn');
       btn.disabled = true;
-      btn.textContent = 'Verifying amounts with Checkbook…';
+      btn.innerHTML = `<span>Verifying micro-deposit amounts…</span>`;
       try {
         const res = await fetch('/api/bank/verify', {
           method: 'POST',
@@ -713,45 +1048,65 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Verification failed');
         renderCustomerState(data.customer);
-        showAlert('Micro-deposits confirmed! Bank is now VERIFIED.', 'ok');
+        showAlert('Micro-deposits confirmed. Your bank account is now VERIFIED.', 'ok');
       } catch (err) {
         showAlert(err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Confirm Amounts & Verify Bank →';
+        btn.innerHTML = `<span>Confirm Amounts &amp; Complete Verification</span><svg width="15" height="15"><use href="#i-arrow-right"/></svg>`;
       }
     });
 
-    function fillDemoManual() {
-      document.getElementById('routingInput').value = '322271627';
-      document.getElementById('accountInput').value = '000123456789';
-      document.getElementById('bankNameInput').value = 'JPMorgan Chase';
+    function fillSandboxQuickData(e) {
+      if (e) e.preventDefault();
+      if (!currentCustomer) {
+        document.getElementById('businessName').value = 'Apex Industrial Supply LLC';
+        document.getElementById('businessEmail').value = 'ap@apexindustrial.co';
+      } else if (currentCustomer.bankStatus === 'UNLINKED') {
+        document.getElementById('routingInput').value = '322271627';
+        document.getElementById('accountInput').value = '000123456789';
+        document.getElementById('accountConfirmInput').value = '000123456789';
+        document.getElementById('iavLogin').value = 'user_good';
+        document.getElementById('iavPassword').value = 'pass_good';
+        onRoutingInput();
+        onAccountInput();
+      } else if (currentCustomer.bankStatus === 'PENDING') {
+        document.getElementById('amt1Input').value = '0.07';
+        document.getElementById('amt2Input').value = '0.15';
+      }
     }
-    function fillDemoIav() {
-      document.getElementById('iavLogin').value = 'user_good';
-      document.getElementById('iavPassword').value = 'pass_good';
-    }
-    function fillSandboxAmounts() {
-      document.getElementById('amt1Input').value = '0.07';
-      document.getElementById('amt2Input').value = '0.15';
-    }
+
     function copyMagicLink() {
       navigator.clipboard.writeText(document.getElementById('magicLinkDisplay').textContent);
-      showAlert('Copied return link to clipboard!', 'ok');
+      showAlert('Verification return link copied to clipboard.', 'ok');
     }
+
     function startFreshGuest() {
       window.location.href = '/';
     }
 
-    // Auto-resume if ?token=... is present in URL
     (async function init() {
+      try {
+        const stRes = await fetch('/api/admin/state');
+        if (stRes.ok) {
+          const stData = await stRes.json();
+          if (stData.config && stData.config.brandName) {
+            document.getElementById('brandTitle').textContent = stData.config.brandName;
+            document.getElementById('footerBrand').textContent = stData.config.brandName;
+          }
+          currentEnv = (stData.config && stData.config.checkbookEnv) || 'sandbox';
+          if (currentEnv === 'sandbox') {
+            document.getElementById('sandboxFillTrigger').classList.remove('hidden');
+          }
+        }
+      } catch (e) {}
+
       const token = new URLSearchParams(window.location.search).get('token');
       if (token) {
         try {
           const res = await fetch('/api/guest/session?token=' + encodeURIComponent(token));
           if (res.ok) {
             const data = await res.json();
-            if (data.brandName) document.getElementById('brandTitle').textContent = data.brandName;
             renderCustomerState(data.customer);
           }
         } catch (e) {}

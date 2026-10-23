@@ -50,12 +50,11 @@ const DEFAULT_STATE = {
     checkbookKey: process.env.CHECKBOOK_KEY || '',
     checkbookSecret: process.env.CHECKBOOK_SECRET || '',
     webhookSecret: process.env.CHECKBOOK_WEBHOOK_SECRET || '',
-    smtpHost: process.env.SMTP_HOST || '',
+    smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
     smtpPort: process.env.SMTP_PORT || '587',
     smtpUser: process.env.SMTP_USER || '',
-    smtpPass: process.env.SMTP_PASS || '',
-    fromEmail: process.env.FROM_EMAIL || '',
-    brevoApiKey: process.env.BREVO_API_KEY || ''
+    smtpPass: (process.env.SMTP_PASS || '').replace(/\s+/g, ''),
+    fromEmail: process.env.FROM_EMAIL || process.env.SMTP_USER || ''
   },
   customers: [],
   invoices: [],
@@ -69,10 +68,13 @@ function loadState() {
   try {
     if (fs.existsSync(DATA_FILE)) {
       const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const mergedConfig = { ...DEFAULT_STATE.config, ...(raw.config || {}) };
+      if (!mergedConfig.smtpHost) mergedConfig.smtpHost = 'smtp.gmail.com';
+      if (!mergedConfig.smtpPort) mergedConfig.smtpPort = '587';
       return {
         ...DEFAULT_STATE,
         ...raw,
-        config: { ...DEFAULT_STATE.config, ...(raw.config || {}) }
+        config: mergedConfig
       };
     }
   } catch (err) {

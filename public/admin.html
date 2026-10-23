@@ -3,24 +3,30 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin Portal — Auto-Debit Invoices, Payouts &amp; Email Outbox</title>
+  <title>Meridian Pay Admin — Auto-Debit Invoicing, Payouts &amp; Gmail SMTP</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <style>
     :root {
       --brand: #0B8F63;
       --brand-700: #07714E;
+      --brand-800: #065B3F;
       --brand-soft: #E7F6F0;
+      --brand-border: #BFE6D5;
       --ink: #0A1220;
       --ink-2: #1E293B;
       --muted: #475467;
       --muted-2: #667085;
-      --bg: #F5F7FB;
+      --bg: #F4F7FA;
       --line: #E2E8F0;
-      --blue: #2563EB;
+      --line-2: #EEF2F6;
+      --blue: #1D4ED8;
       --blue-soft: #EFF4FF;
       --amber: #B54708;
       --amber-soft: #FEF6EE;
       --red: #B42318;
       --red-soft: #FEF3F2;
+      --shadow-sm: 0 1px 2px rgba(10, 18, 32, 0.04);
+      --shadow-md: 0 10px 26px -10px rgba(10, 18, 32, 0.07), 0 2px 6px rgba(10, 18, 32, 0.02);
     }
     * { box-sizing: border-box; }
     body {
@@ -31,40 +37,51 @@
       -webkit-font-smoothing: antialiased;
     }
     .topbar {
-      background: #fff;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--line);
-      height: 64px;
+      height: 66px;
       display: flex;
       align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 30;
     }
-    .wrap { max-width: 1180px; width: 100%; margin: 0 auto; padding: 0 24px; }
+    .wrap { max-width: 1200px; width: 100%; margin: 0 auto; padding: 0 24px; }
     .row { display: flex; align-items: center; }
     .between { justify-content: space-between; }
+    .gap6 { gap: 6px; }
     .gap8 { gap: 8px; }
+    .gap10 { gap: 10px; }
     .gap12 { gap: 12px; }
     .gap16 { gap: 16px; }
+
     .brand {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 10px;
       font-weight: 700;
       font-size: 16px;
+      letter-spacing: -0.02em;
       color: var(--ink);
       text-decoration: none;
     }
     .mark {
-      width: 30px;
-      height: 30px;
+      width: 32px;
+      height: 32px;
       border-radius: 9px;
-      background: var(--brand);
-      color: #fff;
+      background: linear-gradient(145deg, #0EA371, #07714E);
+      box-shadow: 0 4px 10px -2px rgba(11, 143, 99, 0.45);
       display: grid;
       place-items: center;
-      font-weight: 800;
-      font-size: 14px;
+      color: #fff;
     }
-    .navtabs { display: flex; gap: 6px; }
+
+    .navtabs { display: flex; gap: 4px; }
     .navtab {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
       padding: 8px 14px;
       border-radius: 9px;
       font-size: 13px;
@@ -73,62 +90,106 @@
       cursor: pointer;
       border: none;
       background: transparent;
+      transition: all 0.15s;
     }
-    .navtab.active { background: #EDF2F7; color: var(--ink); }
+    .navtab:hover { color: var(--ink); background: #F1F5F9; }
+    .navtab.active { background: var(--ink); color: #fff; }
 
     .pill {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      height: 22px;
+      gap: 5px;
+      height: 23px;
       padding: 0 9px;
       border-radius: 999px;
       font-size: 11px;
       font-weight: 600;
+      white-space: nowrap;
     }
-    .pill-green { background: var(--brand-soft); color: var(--brand-700); border: 1px solid #CDEBDD; }
+    .pill-green { background: var(--brand-soft); color: var(--brand-700); border: 1px solid var(--brand-border); }
     .pill-amber { background: var(--amber-soft); color: var(--amber); border: 1px solid #F3E0C4; }
     .pill-blue { background: var(--blue-soft); color: var(--blue); border: 1px solid #D7E1FB; }
     .pill-grey { background: #F1F5F9; color: var(--muted); border: 1px solid var(--line); }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 960px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .navtabs { overflow-x: auto; }
+    }
+    .kpi-card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .kpi-val { font-size: 22px; font-weight: 700; letter-spacing: -0.025em; margin-top: 6px; }
 
     .card {
       background: #fff;
       border: 1px solid var(--line);
       border-radius: 16px;
-      box-shadow: 0 6px 20px -10px rgba(10, 18, 32, 0.06);
+      box-shadow: var(--shadow-md);
     }
     .card-pad { padding: 22px 24px; }
-    h2 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.02em; }
-    h3 { font-size: 15px; margin: 0; }
+    h2 { font-size: 19px; margin: 0 0 4px; letter-spacing: -0.02em; }
+    h3 { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
     .sub { color: var(--muted); font-size: 13.5px; margin: 0; }
-    .micro { color: var(--muted-2); font-size: 12px; }
+    .micro { color: var(--muted-2); font-size: 12px; line-height: 1.45; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
 
     .grid-2 {
       display: grid;
-      grid-template-columns: 1fr 410px;
+      grid-template-columns: 1fr 420px;
       gap: 24px;
       align-items: start;
     }
-    @media (max-width: 920px) { .grid-2 { grid-template-columns: 1fr; } }
+    .grid-equal {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .grid-2, .grid-equal { grid-template-columns: 1fr; }
+    }
 
     .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
-    .label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+    .label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
     input, select {
-      height: 42px;
-      padding: 0 12px;
-      border-radius: 9px;
+      height: 43px;
+      padding: 0 13px;
+      border-radius: 10px;
       border: 1px solid #CBD5E1;
       font-size: 13.5px;
       color: var(--ink);
       background: #fff;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
+    input:focus, select:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(11, 143, 99, 0.13);
+    }
+
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 7px;
-      height: 42px;
+      height: 43px;
       padding: 0 18px;
       border-radius: 10px;
       font-size: 13.5px;
@@ -136,17 +197,24 @@
       cursor: pointer;
       border: 1px solid transparent;
       text-decoration: none;
+      transition: all 0.15s;
     }
-    .btn-brand { background: var(--brand); color: #fff; }
+    .btn-brand {
+      background: var(--brand);
+      color: #fff;
+      box-shadow: 0 3px 10px -2px rgba(11, 143, 99, 0.35);
+    }
     .btn-brand:hover { background: var(--brand-700); }
+    .btn-brand:disabled { opacity: 0.65; cursor: not-allowed; }
     .btn-secondary { background: #fff; color: var(--ink-2); border-color: #CBD5E1; }
-    .btn-sm { height: 30px; padding: 0 10px; font-size: 11.5px; border-radius: 7px; }
+    .btn-secondary:hover { background: #F8FAFC; }
+    .btn-sm { height: 31px; padding: 0 11px; font-size: 11.5px; border-radius: 8px; }
     .btn-block { width: 100%; }
 
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th {
       text-align: left;
-      padding: 10px 14px;
+      padding: 11px 16px;
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.04em;
@@ -154,47 +222,151 @@
       border-bottom: 1px solid var(--line);
       background: #FAFBFD;
     }
-    td { padding: 12px 14px; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
+    td { padding: 13px 16px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
+
     .toast {
-      padding: 11px 16px;
-      border-radius: 10px;
-      margin-bottom: 18px;
-      font-size: 13px;
+      padding: 13px 16px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      font-size: 13.5px;
+      font-weight: 500;
       display: none;
+      align-items: center;
+      gap: 10px;
     }
-    .toast.ok { display: block; background: var(--brand-soft); color: var(--brand-700); border: 1px solid #CDEBDD; }
-    .toast.err { display: block; background: var(--red-soft); color: var(--red); border: 1px solid #FECDCA; }
+    .toast.ok { display: flex; background: var(--brand-soft); color: var(--brand-700); border: 1px solid var(--brand-border); }
+    .toast.err { display: flex; background: var(--red-soft); color: var(--red); border: 1px solid #FECDCA; }
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
+  <!-- Inline Vector SVG Icon Sprite -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-mark" viewBox="0 0 24 24" fill="none">
+        <path d="M4 19V7.5L12 14l8-6.5V19" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24" fill="none">
+        <path d="M4.5 12.5l5 5 10-11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24" fill="none">
+        <path d="M12 3L5 5.8v5.6c0 4.2 2.9 7.6 7 9.6 4.1-2 7-5.4 7-9.6V5.8L12 3z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+        <path d="M9 12.2l2.1 2.1 4-4.3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-bank" viewBox="0 0 24 24" fill="none">
+        <path d="M3.5 9.5L12 4l8.5 5.5M5 10v8.5M9.5 10v8.5M14.5 10v8.5M19 10v8.5M3 19.5h18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24" fill="none">
+        <path d="M13.5 3L5.8 13.2h5.1L10.5 21l7.7-10.2h-5.1L13.5 3z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-mail" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="1.9"/>
+        <path d="M3.5 7l8.5 6 8.5-6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-doc" viewBox="0 0 24 24" fill="none">
+        <path d="M6 3.5h7.5L19 9v11.5H6V3.5z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+        <path d="M13.2 3.8V9h5M9 13h6M9 16.5h4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.9"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.77 1.02 1.41 1.09H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.7"/>
+      </symbol>
+      <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none">
+        <path d="M4.5 12h14M13 6.5L18.5 12 13 17.5" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24" fill="none">
+        <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.9"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24" fill="none">
+        <path d="M12 4.5L21 19.5H3L12 4.5z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+        <path d="M12 10v4.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="12" cy="17" r="1" fill="currentColor"/>
+      </symbol>
+    </defs>
+  </svg>
+
   <header class="topbar">
     <div class="wrap row between">
-      <div class="row gap12">
+      <div class="row gap10">
         <a href="/" class="brand">
-          <span class="mark">M</span>
+          <span class="mark"><svg width="17" height="17"><use href="#i-mark"/></svg></span>
           <span id="adminBrand">Meridian Pay</span>
         </a>
-        <span class="pill pill-grey">ADMIN</span>
+        <span class="pill pill-grey">ADMIN CONSOLE</span>
       </div>
 
       <div class="navtabs">
-        <button class="navtab active" data-tab="invoices" onclick="switchTab('invoices')">1 · Customers &amp; Auto-Debit</button>
-        <button class="navtab" data-tab="payouts" onclick="switchTab('payouts')">2 · Send Payouts</button>
-        <button class="navtab" data-tab="outbox" onclick="switchTab('outbox')">3 · Customer Emails (<span id="emailCount">0</span>)</button>
-        <button class="navtab" data-tab="settings" onclick="switchTab('settings')">4 · API Logs &amp; Keys / Hotmail Setup</button>
+        <button class="navtab active" data-tab="invoices" onclick="switchTab('invoices')">
+          <svg width="14" height="14"><use href="#i-doc"/></svg>
+          <span>Customers &amp; Auto-Debit</span>
+        </button>
+        <button class="navtab" data-tab="payouts" onclick="switchTab('payouts')">
+          <svg width="14" height="14"><use href="#i-bank"/></svg>
+          <span>Send Payouts</span>
+        </button>
+        <button class="navtab" data-tab="outbox" onclick="switchTab('outbox')">
+          <svg width="14" height="14"><use href="#i-mail"/></svg>
+          <span>Sent Emails (<span id="emailCount">0</span>)</span>
+        </button>
+        <button class="navtab" data-tab="settings" onclick="switchTab('settings')">
+          <svg width="14" height="14"><use href="#i-settings"/></svg>
+          <span>Gmail SMTP &amp; Checkbook Keys</span>
+        </button>
       </div>
 
       <div class="row gap8">
-        <span class="pill pill-green" id="modeIndicator">Owner VERIFIED</span>
-        <a href="/" class="btn btn-secondary btn-sm">+ Guest Form</a>
+        <span class="pill pill-green" id="modeIndicator">Checkbook Ready</span>
+        <a href="/" class="btn btn-secondary btn-sm">Customer Form &rarr;</a>
       </div>
     </div>
   </header>
 
-  <main class="wrap" style="padding:28px 24px 64px">
-    <div id="toast" class="toast"></div>
+  <main class="wrap" style="padding:26px 24px 64px">
+    <div id="toast" class="toast">
+      <svg width="16" height="16" id="toastIcon"><use href="#i-check"/></svg>
+      <span id="toastText"></span>
+    </div>
+
+    <!-- TOP KPI BAR -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="row between">
+          <span class="micro" style="font-weight:600;text-transform:uppercase;letter-spacing:.04em">Verified Customers</span>
+          <span class="pill pill-green"><svg width="11" height="11"><use href="#i-check"/></svg>Auto-Debit Ready</span>
+        </div>
+        <div class="kpi-val" id="kpiVerifiedCount">0</div>
+        <div class="micro" id="kpiPendingSub" style="margin-top:3px">0 pending micro-deposits</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="row between">
+          <span class="micro" style="font-weight:600;text-transform:uppercase;letter-spacing:.04em">Auto-Debited Invoices</span>
+          <span class="pill pill-blue"><svg width="11" height="11"><use href="#i-doc"/></svg>ACH Pull</span>
+        </div>
+        <div class="kpi-val" id="kpiInvoiceVol">$0.00</div>
+        <div class="micro" id="kpiInvoiceSub" style="margin-top:3px">0 invoices issued</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="row between">
+          <span class="micro" style="font-weight:600;text-transform:uppercase;letter-spacing:.04em">Outbound Payouts</span>
+          <span class="pill pill-grey"><svg width="11" height="11"><use href="#i-bank"/></svg>Digital Check / ACH</span>
+        </div>
+        <div class="kpi-val" id="kpiPayoutVol">$0.00</div>
+        <div class="micro" id="kpiPayoutSub" style="margin-top:3px">0 payouts sent</div>
+      </div>
+
+      <div class="kpi-card" style="cursor:pointer" onclick="switchTab('settings')">
+        <div class="row between">
+          <span class="micro" style="font-weight:600;text-transform:uppercase;letter-spacing:.04em">Integrations</span>
+          <span class="pill pill-grey" id="kpiSmtpBadge">Configure &rarr;</span>
+        </div>
+        <div class="kpi-val" style="font-size:15.5px;margin-top:9px" id="kpiIntegrationHeadline">Checkbook + Gmail SMTP</div>
+        <div class="micro" id="kpiIntegrationSub" style="margin-top:4px">Click to manage Gmail &amp; API keys</div>
+      </div>
+    </div>
 
     <!-- TAB 1: VERIFIED CUSTOMERS & 1-CLICK AUTO-DEBIT INVOICING -->
     <section id="tab-invoices">
@@ -203,17 +375,17 @@
           <div class="card" style="margin-bottom:22px;overflow:hidden">
             <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
               <div>
-                <h3>Customers &amp; Bank Verification Gate</h3>
-                <div class="micro">Only <b>VERIFIED</b> banks can be auto-debited when you issue an invoice.</div>
+                <h3>Customer Bank Verification Directory</h3>
+                <div class="micro">Invoices are gated until a customer’s bank status reaches <b>VERIFIED</b>.</div>
               </div>
-              <a href="/" class="btn btn-secondary btn-sm">+ Add Guest Customer</a>
+              <a href="/" class="btn btn-secondary btn-sm">+ Onboard Customer</a>
             </div>
             <table>
               <thead>
                 <tr>
                   <th>Business &amp; Email</th>
                   <th>Checkbook <span class="mono">user_id</span></th>
-                  <th>Bank Account</th>
+                  <th>Linked Bank</th>
                   <th>Status</th>
                   <th style="text-align:right">Action</th>
                 </tr>
@@ -226,7 +398,7 @@
             <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
               <div>
                 <h3>Issued &amp; Auto-Debited Invoices</h3>
-                <div class="micro">Created with <span class="mono">POST /v3/invoice</span> (owner key) + paid immediately via <span class="mono">POST /v3/invoice/payment</span> (guest key).</div>
+                <div class="micro">Created via <span class="mono">POST /v3/invoice</span> (owner key) &amp; immediately debited via <span class="mono">POST /v3/invoice/payment</span> (customer key).</div>
               </div>
             </div>
             <table>
@@ -237,7 +409,7 @@
                   <th>Memo</th>
                   <th>Amount</th>
                   <th>Status</th>
-                  <th style="text-align:right">Webhook Test</th>
+                  <th style="text-align:right">Settlement</th>
                 </tr>
               </thead>
               <tbody id="invoicesTableBody"></tbody>
@@ -249,15 +421,18 @@
         <div class="card card-pad">
           <div class="row between" style="margin-bottom:6px">
             <h3>Issue &amp; Auto-Debit Invoice</h3>
-            <span class="pill pill-green">Zero Customer Clicks</span>
+            <span class="pill pill-green">
+              <svg width="11" height="11"><use href="#i-bolt"/></svg>
+              Immediate ACH Pull
+            </span>
           </div>
           <p class="micro" style="margin-bottom:16px">
-            Select a <b>VERIFIED</b> customer below. Clicking the button issues the invoice, immediately initiates the ACH debit from their verified bank, and emails them the payment status.
+            Select a <b>VERIFIED</b> customer below. Issuing the invoice automatically triggers an ACH debit from their verified bank account and emails them a status receipt via Gmail SMTP.
           </p>
 
           <form id="autoDebitForm">
             <div class="field">
-              <label class="label">Verified Customer</label>
+              <label class="label">Verified Customer Account</label>
               <select id="invoiceCustomerSelect" required></select>
             </div>
             <div class="field">
@@ -265,18 +440,19 @@
               <input type="number" step="0.01" min="1" id="invoiceAmount" value="4800.00" required />
             </div>
             <div class="field">
-              <label class="label">Description / Memo</label>
-              <input type="text" id="invoiceDesc" value="Phase 1 build — milestones 1–2" required />
+              <label class="label">Invoice Description / Memo</label>
+              <input type="text" id="invoiceDesc" value="Commercial services — Milestone 1" required />
             </div>
 
-            <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:16px;font-size:12px;color:var(--muted)">
-              <div><b>1.</b> <span class="mono">POST /v3/invoice</span> (owner key, <span class="mono">recipient = user_id</span>)</div>
-              <div style="margin-top:4px"><b>2.</b> <span class="mono">POST /v3/invoice/payment</span> (customer key + <span class="mono">bank_id</span>)</div>
-              <div style="margin-top:4px"><b>3.</b> Sends <b>IN_PROCESS</b> receipt email to customer automatically</div>
+            <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.6">
+              <div><b>1.</b> <span class="mono">POST /v3/invoice</span> (Owner key, <span class="mono">recipient = user_id</span>)</div>
+              <div><b>2.</b> <span class="mono">POST /v3/invoice/payment</span> (Customer key + <span class="mono">bank_id</span>)</div>
+              <div><b>3.</b> Emails customer <b>IN_PROCESS</b> receipt automatically</div>
             </div>
 
             <button type="submit" class="btn btn-brand btn-block" id="issueAutoDebitBtn">
-              Issue &amp; Auto-Debit Invoice Now →
+              <span>Issue &amp; Auto-Debit Invoice Now</span>
+              <svg width="15" height="15"><use href="#i-arrow-right"/></svg>
             </button>
           </form>
         </div>
@@ -289,19 +465,19 @@
         <div class="card" style="overflow:hidden">
           <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
             <div>
-              <h3>Outbound Payouts (<span class="mono">POST /v3/check/digital</span>)</h3>
-              <div class="micro">Sent from your verified Checkbook Owner profile.</div>
+              <h3>Outbound Payout Ledger (<span class="mono">POST /v3/check/digital</span>)</h3>
+              <div class="micro">Disbursements sent from your verified Checkbook Owner profile.</div>
             </div>
           </div>
           <table>
             <thead>
               <tr>
-                <th>Check #</th>
+                <th>Payment #</th>
                 <th>Recipient</th>
                 <th>Memo</th>
                 <th>Amount</th>
                 <th>Status</th>
-                <th style="text-align:right">Webhook Test</th>
+                <th style="text-align:right">Settlement</th>
               </tr>
             </thead>
             <tbody id="payoutsTableBody"></tbody>
@@ -309,19 +485,19 @@
         </div>
 
         <div class="card card-pad">
-          <h3 style="margin-bottom:6px">Send a Payment Out</h3>
+          <h3 style="margin-bottom:6px">Send Outbound Payment</h3>
           <p class="micro" style="margin-bottom:16px">
-            Pick a verified customer from your list (auto-deposits to their verified bank) or enter any external business name and email.
+            Select a verified customer (auto-deposits directly into their verified bank) or enter any recipient name and email.
           </p>
           <form id="payoutForm">
             <div class="field">
               <label class="label">Quick-Fill From Verified Customer (Optional)</label>
               <select id="payoutCustomerSelect" onchange="fillPayoutFromCustomer()">
-                <option value="">— Or type any recipient below —</option>
+                <option value="">— Or enter any recipient below —</option>
               </select>
             </div>
             <div class="field">
-              <label class="label">Recipient Business / Name</label>
+              <label class="label">Recipient Business or Full Name</label>
               <input type="text" id="payoutName" placeholder="Northwind Studio LLC" required />
             </div>
             <div class="field">
@@ -329,15 +505,16 @@
               <input type="email" id="payoutEmail" placeholder="dana@northwind.co" required />
             </div>
             <div class="field">
-              <label class="label">Amount ($ USD)</label>
+              <label class="label">Payout Amount ($ USD)</label>
               <input type="number" step="0.01" min="1" id="payoutAmount" value="1250.00" required />
             </div>
             <div class="field">
-              <label class="label">Memo / Description</label>
-              <input type="text" id="payoutDesc" value="Contractor payout — settlement" required />
+              <label class="label">Memo / Reference</label>
+              <input type="text" id="payoutDesc" value="Vendor settlement payout" required />
             </div>
             <button type="submit" class="btn btn-brand btn-block" id="payoutBtn">
-              Send Payout via Checkbook →
+              <span>Send Payout via Checkbook</span>
+              <svg width="15" height="15"><use href="#i-arrow-right"/></svg>
             </button>
           </form>
         </div>
@@ -349,127 +526,171 @@
       <div class="card" style="overflow:hidden">
         <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
           <div>
-            <h3>Customer Notification Emails &amp; Magic Links</h3>
-            <div class="micro">Every micro-deposit link, auto-debit <span class="mono">IN_PROCESS</span> alert, and <span class="mono">PAID</span> receipt sent to customers is logged here.</div>
+            <h3>Customer Notification Emails &amp; Verification Links</h3>
+            <div class="micro">Every micro-deposit link, auto-debit <span class="mono">IN_PROCESS</span> receipt, and <span class="mono">PAID</span> confirmation sent via Gmail SMTP is archived here.</div>
           </div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="switchTab('settings')">Configure Gmail SMTP &rarr;</button>
         </div>
         <div id="emailsList" style="padding:18px 24px;display:flex;flex-direction:column;gap:16px"></div>
       </div>
     </section>
 
-    <!-- TAB 4: API LOGS, WEBHOOKS & LIVE KEYS / HOTMAIL SETUP -->
+    <!-- TAB 4: GMAIL SMTP & CHECKBOOK KEYS + LOGS -->
     <section id="tab-settings" class="hidden">
-      <div class="grid-2">
-        <div>
-          <div class="card" style="margin-bottom:22px;overflow:hidden">
-            <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
-              <div>
-                <h3>Checkbook v3 API Call Log</h3>
-                <div class="micro">Notice how <span class="mono">owner key</span> and <span class="mono">guest key</span> are strictly separated so 403 errors never occur.</div>
-              </div>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Call</th>
-                  <th>Key Used</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="apiLogsBody"></tbody>
-            </table>
-          </div>
-
-          <div class="card" style="overflow:hidden">
-            <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
-              <div>
-                <h3>Checkbook Webhook Log (<span class="mono">POST /webhook/checkbook</span>)</h3>
-                <div class="micro">Verifies <span class="mono">HMAC-SHA256(rawBody + nonce, signing_key)</span>.</div>
-              </div>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Matched Action</th>
-                </tr>
-              </thead>
-              <tbody id="webhooksBody"></tbody>
-            </table>
-          </div>
-        </div>
-
+      <div class="grid-equal" style="margin-bottom:24px">
+        <!-- CARD A: GMAIL 16-CHARACTER APP PASSWORD SETUP -->
         <div class="card card-pad">
-          <h3 style="margin-bottom:6px">Checkbook API Keys &amp; Free Hotmail/Email Setup</h3>
-          <p class="micro" style="margin-bottom:14px">
-            Paste your live Checkbook keys or free Brevo/SMTP credentials here (or set them in Netlify Environment Variables).
+          <div class="row between" style="margin-bottom:8px">
+            <div class="row gap8">
+              <svg width="18" height="18" style="color:var(--brand)"><use href="#i-mail"/></svg>
+              <h3>Gmail SMTP Setup (16-Digit App Password)</h3>
+            </div>
+            <span class="pill pill-grey" id="gmailStatusPill">Not Connected</span>
+          </div>
+          <p class="micro" style="margin-bottom:16px">
+            Pre-configured for Google’s official SMTP server (<span class="mono">smtp.gmail.com</span>, Port <span class="mono">587</span>). Enter your Gmail address and 16-character Google App Password below — spaces are stripped automatically.
           </p>
 
-          <form id="configForm">
+          <form id="gmailForm">
             <div class="field">
-              <label class="label">Brand / Business Name</label>
-              <input type="text" id="cfgBrand" placeholder="Meridian Pay" />
-            </div>
-            <div class="field">
-              <label class="label">Checkbook Environment</label>
-              <select id="cfgEnv">
-                <option value="sandbox">sandbox (sandbox.checkbook.io/v3)</option>
-                <option value="production">production (checkbook.io/v3)</option>
-              </select>
-            </div>
-            <div class="field">
-              <label class="label">Checkbook Owner Publishable Key (<span class="mono">CHECKBOOK_KEY</span>)</label>
-              <input type="text" id="cfgCbKey" placeholder="Leave blank for Sandbox simulator or paste key" />
-            </div>
-            <div class="field">
-              <label class="label">Checkbook Owner Secret Key (<span class="mono">CHECKBOOK_SECRET</span>)</label>
-              <input type="password" id="cfgCbSecret" placeholder="Paste Checkbook Secret Key" />
-            </div>
-            <div class="field">
-              <label class="label">Checkbook Webhook Signing Key (<span class="mono">CHECKBOOK_WEBHOOK_SECRET</span>)</label>
-              <input type="password" id="cfgWebhook" placeholder="Optional webhook HMAC signing key" />
-            </div>
-
-            <hr style="border:none;border-top:1px solid var(--line);margin:16px 0" />
-            <div style="font-size:12.5px;font-weight:700;margin-bottom:6px">Free Email Setup (Works with @hotmail.com for $0)</div>
-            <div class="micro" style="margin-bottom:12px">
-              Microsoft blocked password SMTP on personal <span class="mono">@hotmail.com</span> accounts in 2026. To send from your <span class="mono">@hotmail.com</span> address for <b>$0</b>: create a free account at <b>brevo.com</b> (300 emails/day free, no credit card), verify your Hotmail address as a Sender, and paste your Brevo API Key or SMTP login below:
+              <label class="label" for="cfgSmtpUser">
+                <span>Your Gmail Address</span>
+                <span class="micro">Used as login &amp; sender address</span>
+              </label>
+              <input type="email" id="cfgSmtpUser" placeholder="yourname@gmail.com" required />
             </div>
 
             <div class="field">
-              <label class="label">Sender Email Address (<span class="mono">FROM_EMAIL</span> — e.g. your @hotmail.com)</label>
-              <input type="email" id="cfgFromEmail" placeholder="yourname@hotmail.com" />
+              <label class="label" for="cfgSmtpPass">
+                <span>16-Character Gmail App Password</span>
+                <span class="micro">Spaces are removed automatically</span>
+              </label>
+              <input type="password" id="cfgSmtpPass" placeholder="xxxx xxxx xxxx xxxx" />
             </div>
-            <div class="field">
-              <label class="label">Brevo Free API Key (<span class="mono">BREVO_API_KEY</span> — easiest for Hotmail)</label>
-              <input type="password" id="cfgBrevo" placeholder="xkeysib-..." />
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 90px;gap:10px">
+
+            <div style="display:grid;grid-template-columns:1fr 110px;gap:12px">
               <div class="field">
-                <label class="label">Or SMTP Host (<span class="mono">smtp-relay.brevo.com</span> / <span class="mono">smtp.gmail.com</span>)</label>
-                <input type="text" id="cfgSmtpHost" placeholder="smtp-relay.brevo.com" />
+                <label class="label" for="cfgSmtpHost">SMTP Server Host</label>
+                <input type="text" id="cfgSmtpHost" value="smtp.gmail.com" />
               </div>
               <div class="field">
-                <label class="label">Port</label>
+                <label class="label" for="cfgSmtpPort">SMTP Port</label>
                 <input type="text" id="cfgSmtpPort" value="587" />
               </div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+
+            <div class="row gap10" style="margin-top:6px">
+              <button type="button" class="btn btn-brand" style="flex:1" id="testGmailBtn" onclick="saveAndTestGmail()">
+                <svg width="15" height="15"><use href="#i-mail"/></svg>
+                <span>Save &amp; Send Test Email</span>
+              </button>
+              <button type="submit" class="btn btn-secondary">Save Only</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- CARD B: CHECKBOOK.IO API & WEBHOOK SETUP -->
+        <div class="card card-pad">
+          <div class="row between" style="margin-bottom:8px">
+            <div class="row gap8">
+              <svg width="18" height="18" style="color:var(--brand)"><use href="#i-shield"/></svg>
+              <h3>Checkbook.io v3 API &amp; Webhook Configuration</h3>
+            </div>
+            <span class="pill pill-grey" id="cbStatusPill">Sandbox Mode</span>
+          </div>
+          <p class="micro" style="margin-bottom:16px">
+            Enter your Checkbook Owner Publishable Key, Secret Key, and Webhook Signing Key.
+          </p>
+
+          <form id="cbConfigForm">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
               <div class="field">
-                <label class="label">SMTP Login</label>
-                <input type="text" id="cfgSmtpUser" placeholder="yourname@hotmail.com" />
+                <label class="label" for="cfgBrand">Portal Brand Name</label>
+                <input type="text" id="cfgBrand" placeholder="Meridian Pay" />
               </div>
               <div class="field">
-                <label class="label">SMTP Key / App Password</label>
-                <input type="password" id="cfgSmtpPass" placeholder="••••••••" />
+                <label class="label" for="cfgEnv">Checkbook Environment</label>
+                <select id="cfgEnv">
+                  <option value="sandbox">Sandbox (sandbox.checkbook.io)</option>
+                  <option value="production">Production (checkbook.io)</option>
+                </select>
               </div>
             </div>
 
-            <button type="submit" class="btn btn-brand btn-block">Save Settings</button>
+            <div class="field">
+              <label class="label" for="cfgCbKey">
+                <span>Checkbook Publishable Key (<span class="mono">CHECKBOOK_KEY</span>)</span>
+                <span class="mono" id="cbKeyPreview" style="color:var(--brand-700)"></span>
+              </label>
+              <input type="text" id="cfgCbKey" placeholder="Enter Checkbook Publishable Key" />
+            </div>
+
+            <div class="field">
+              <label class="label" for="cfgCbSecret">Checkbook Secret Key (<span class="mono">CHECKBOOK_SECRET</span>)</label>
+              <input type="password" id="cfgCbSecret" placeholder="Enter Checkbook Secret Key" />
+            </div>
+
+            <div class="field">
+              <label class="label" for="cfgWebhook">Webhook Signing Key (<span class="mono">CHECKBOOK_WEBHOOK_SECRET</span>)</label>
+              <input type="password" id="cfgWebhook" placeholder="Enter Checkbook Webhook Signing Key" />
+            </div>
+
+            <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:14px">
+              <div class="row between">
+                <span class="micro" style="font-weight:600;color:var(--ink-2)">Your Live Webhook URL (Paste in Checkbook Dashboard):</span>
+                <button type="button" class="btn btn-secondary btn-sm" style="height:26px;padding:0 8px" onclick="copyWebhookUrl()">
+                  <svg width="12" height="12"><use href="#i-copy"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <code class="mono" id="webhookUrlBox" style="color:var(--blue);display:block;margin-top:4px;word-break:break-all"></code>
+            </div>
+
+            <button type="submit" class="btn btn-brand btn-block">Save Checkbook API Settings</button>
           </form>
+        </div>
+      </div>
+
+      <!-- API CALLS & WEBHOOK AUDIT LOGS -->
+      <div class="grid-equal">
+        <div class="card" style="overflow:hidden">
+          <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
+            <div>
+              <h3>Checkbook v3 API Call Log</h3>
+              <div class="micro">Per-customer <span class="mono">guest key</span> vs <span class="mono">owner key</span> isolation prevents 403 errors.</div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Endpoint</th>
+                <th>Key Scope</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="apiLogsBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="overflow:hidden">
+          <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
+            <div>
+              <h3>Incoming Webhook Audit Log (<span class="mono">POST /webhook/checkbook</span>)</h3>
+              <div class="micro">Verifies <span class="mono">HMAC-SHA256(rawBody + nonce, signing_key)</span>.</div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Event</th>
+                <th>Status</th>
+                <th>Action Triggered</th>
+              </tr>
+            </thead>
+            <tbody id="webhooksBody"></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -480,9 +701,12 @@
 
     function showToast(msg, type = 'ok') {
       const t = document.getElementById('toast');
+      const txt = document.getElementById('toastText');
+      const icon = document.getElementById('toastIcon');
       t.className = 'toast ' + type;
-      t.textContent = msg;
-      setTimeout(() => { t.style.display = 'none'; }, 5500);
+      txt.textContent = msg;
+      icon.innerHTML = `<use href="${type === 'ok' ? '#i-check' : '#i-alert'}"/>`;
+      setTimeout(() => { t.className = 'toast'; }, 6000);
     }
 
     function switchTab(name) {
@@ -493,21 +717,56 @@
     }
 
     function badgeForStatus(st) {
-      if (st === 'VERIFIED' || st === 'PAID') return `<span class="pill pill-green">✓ ${st}</span>`;
-      if (st === 'IN_PROCESS') return `<span class="pill pill-blue">⟳ ${st}</span>`;
-      if (st === 'PENDING') return `<span class="pill pill-amber">⏳ ${st}</span>`;
+      if (st === 'VERIFIED' || st === 'PAID') {
+        return `<span class="pill pill-green"><svg width="11" height="11"><use href="#i-check"/></svg>${st}</span>`;
+      }
+      if (st === 'IN_PROCESS') {
+        return `<span class="pill pill-blue"><svg width="11" height="11"><use href="#i-bolt"/></svg>${st}</span>`;
+      }
+      if (st === 'PENDING') {
+        return `<span class="pill pill-amber">${st}</span>`;
+      }
       return `<span class="pill pill-grey">${st}</span>`;
     }
 
     async function loadAdminState() {
       const res = await fetch('/api/admin/state');
       adminState = await res.json();
+      const cfg = adminState.config || {};
 
-      document.getElementById('adminBrand').textContent = adminState.config.brandName || 'Meridian Pay';
+      document.getElementById('adminBrand').textContent = cfg.brandName || 'Meridian Pay';
       document.getElementById('emailCount').textContent = adminState.emails.length;
-      document.getElementById('modeIndicator').textContent = adminState.config.hasLiveCheckbookKeys
-        ? `Live Checkbook (${adminState.config.checkbookEnv})`
-        : `Sandbox Ready (${adminState.config.checkbookEnv})`;
+      document.getElementById('webhookUrlBox').textContent = window.location.origin + '/webhook/checkbook';
+
+      // KPI computations
+      const verifiedCusts = adminState.customers.filter(c => c.bankStatus === 'VERIFIED');
+      const pendingCusts = adminState.customers.filter(c => c.bankStatus !== 'VERIFIED');
+      document.getElementById('kpiVerifiedCount').textContent = verifiedCusts.length;
+      document.getElementById('kpiPendingSub').textContent = `${pendingCusts.length} pending verification`;
+
+      const invTotal = adminState.invoices.reduce((s, i) => s + Number(i.amount || 0), 0);
+      document.getElementById('kpiInvoiceVol').textContent = '$' + invTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('kpiInvoiceSub').textContent = `${adminState.invoices.length} auto-debit invoice(s)`;
+
+      const payTotal = adminState.payouts.reduce((s, p) => s + Number(p.amount || 0), 0);
+      document.getElementById('kpiPayoutVol').textContent = '$' + payTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('kpiPayoutSub').textContent = `${adminState.payouts.length} outbound payout(s)`;
+
+      // Integration status badges
+      const smtpConnected = Boolean(cfg.hasSmtpPass && cfg.smtpUser);
+      const cbConnected = Boolean(cfg.hasLiveCheckbookKeys);
+
+      document.getElementById('kpiSmtpBadge').className = 'pill ' + (smtpConnected ? 'pill-green' : 'pill-amber');
+      document.getElementById('kpiSmtpBadge').textContent = smtpConnected ? 'Gmail Active' : 'Setup Needed';
+      document.getElementById('kpiIntegrationHeadline').textContent = `${cbConnected ? 'Live Checkbook' : 'Checkbook Sandbox'} · ${smtpConnected ? 'Gmail Active' : 'No Gmail Yet'}`;
+      document.getElementById('kpiIntegrationSub').textContent = smtpConnected ? `Sending from ${cfg.smtpUser}` : 'Click to enter your 16-digit Gmail App Password';
+
+      document.getElementById('gmailStatusPill').className = 'pill ' + (smtpConnected ? 'pill-green' : 'pill-amber');
+      document.getElementById('gmailStatusPill').textContent = smtpConnected ? `Connected (${cfg.smtpUser})` : 'Enter Gmail App Password';
+
+      document.getElementById('cbStatusPill').className = 'pill ' + (cbConnected ? 'pill-green' : 'pill-blue');
+      document.getElementById('cbStatusPill').textContent = cbConnected ? `Live Keys (${cfg.checkbookEnv})` : `Sandbox Simulator (${cfg.checkbookEnv})`;
+      document.getElementById('modeIndicator').textContent = cbConnected ? `Checkbook Live (${cfg.checkbookEnv})` : `Sandbox Ready`;
 
       // Customers Table
       const cBody = document.getElementById('customersTableBody');
@@ -518,26 +777,25 @@
             <div class="micro">${c.email}</div>
           </td>
           <td><span class="mono">${c.user_id}</span></td>
-          <td>${c.accountLast4 ? `${c.bankName || 'Bank'} •••• ${c.accountLast4}` : '<span class="micro">No bank yet</span>'}</td>
+          <td>${c.accountLast4 ? `${c.bankName || 'Bank'} •••• ${c.accountLast4}` : '<span class="micro">Unlinked</span>'}</td>
           <td>${badgeForStatus(c.bankStatus)}</td>
           <td style="text-align:right">
             ${c.bankStatus === 'VERIFIED'
               ? `<button class="btn btn-brand btn-sm" onclick="selectCustomerForInvoice('${c.id}')">Select for Auto-Debit</button>`
-              : `<a class="btn btn-secondary btn-sm" href="/?token=${c.token}">Open Guest Link →</a>`}
+              : `<a class="btn btn-secondary btn-sm" href="/?token=${c.token}">Verification Link &rarr;</a>`}
           </td>
         </tr>
       `).join('');
 
       // Verified customers dropdowns
-      const verified = adminState.customers.filter(c => c.bankStatus === 'VERIFIED');
       const invSel = document.getElementById('invoiceCustomerSelect');
-      invSel.innerHTML = verified.length
-        ? verified.map(c => `<option value="${c.id}">${c.businessName} (${c.email} · •••• ${c.accountLast4})</option>`).join('')
+      invSel.innerHTML = verifiedCusts.length
+        ? verifiedCusts.map(c => `<option value="${c.id}">${c.businessName} (${c.email} · •••• ${c.accountLast4})</option>`).join('')
         : `<option value="">No VERIFIED customers yet — verify a customer first</option>`;
 
       const paySel = document.getElementById('payoutCustomerSelect');
-      paySel.innerHTML = `<option value="">— Or type any recipient below —</option>` +
-        verified.map(c => `<option value="${c.id}" data-name="${c.businessName}" data-email="${c.email}">${c.businessName} (${c.email})</option>`).join('');
+      paySel.innerHTML = `<option value="">— Or enter any recipient below —</option>` +
+        verifiedCusts.map(c => `<option value="${c.id}" data-name="${c.businessName}" data-email="${c.email}">${c.businessName} (${c.email})</option>`).join('');
 
       // Invoices Table
       const iBody = document.getElementById('invoicesTableBody');
@@ -554,12 +812,12 @@
             <td>${badgeForStatus(inv.status)}</td>
             <td style="text-align:right">
               ${inv.status === 'IN_PROCESS'
-                ? `<button class="btn btn-secondary btn-sm" onclick="simulateWebhook('INVOICE','PAID','${inv.id}')">Simulate PAID Webhook</button>`
+                ? `<button class="btn btn-secondary btn-sm" onclick="simulateWebhook('INVOICE','PAID','${inv.id}')">Mark PAID (Webhook)</button>`
                 : `<span class="micro">Settled</span>`}
             </td>
           </tr>
         `).join('')
-        : `<tr><td colspan="6" class="micro" style="text-align:center;padding:24px">No auto-debit invoices issued yet. Click "Issue &amp; Auto-Debit Invoice Now" on the right to test!</td></tr>`;
+        : `<tr><td colspan="6" class="micro" style="text-align:center;padding:24px">No auto-debit invoices issued yet. Use the form on the right to issue &amp; auto-debit an invoice.</td></tr>`;
 
       // Payouts Table
       const pBody = document.getElementById('payoutsTableBody');
@@ -573,7 +831,7 @@
             <td>${badgeForStatus(p.status)}</td>
             <td style="text-align:right">
               ${p.status === 'IN_PROCESS'
-                ? `<button class="btn btn-secondary btn-sm" onclick="simulateWebhook('CHECK','PAID','${p.id}')">Simulate PAID Webhook</button>`
+                ? `<button class="btn btn-secondary btn-sm" onclick="simulateWebhook('CHECK','PAID','${p.id}')">Mark PAID (Webhook)</button>`
                 : `<span class="micro">Completed</span>`}
             </td>
           </tr>
@@ -584,19 +842,19 @@
       const eList = document.getElementById('emailsList');
       eList.innerHTML = adminState.emails.length
         ? adminState.emails.map(em => `
-          <div style="border:1px solid var(--line);border-radius:12px;padding:14px 18px;background:#FAFBFD">
+          <div style="border:1px solid var(--line);border-radius:12px;padding:15px 18px;background:#FAFBFD">
             <div class="row between" style="margin-bottom:6px">
               <div class="row gap8">
-                <span class="pill pill-blue">${em.tag}</span>
+                <span class="pill ${em.deliveryStatus === 'sent_gmail_smtp' ? 'pill-green' : 'pill-blue'}">${em.tag}</span>
                 <strong>To: ${em.to}</strong>
               </div>
-              <span class="micro">${new Date(em.ts).toLocaleTimeString()} · ${em.deliveryDetail}</span>
+              <span class="micro">${new Date(em.ts).toLocaleTimeString()} &middot; ${em.deliveryDetail}</span>
             </div>
             <div style="font-size:14px;font-weight:600;margin-bottom:10px">${em.subject}</div>
-            <div style="background:#fff;border-radius:8px;padding:10px">${em.html}</div>
+            <div style="background:#fff;border-radius:10px;padding:10px">${em.html}</div>
           </div>
         `).join('')
-        : `<div class="micro" style="text-align:center;padding:24px">No customer emails generated yet. Issue an auto-debit invoice or verify a customer to see the automatic emails here.</div>`;
+        : `<div class="micro" style="text-align:center;padding:28px">No customer emails sent yet. Issue an auto-debit invoice or click "Save &amp; Send Test Email" in the Gmail SMTP tab.</div>`;
 
       // API Logs
       document.getElementById('apiLogsBody').innerHTML = adminState.apiLogs.length
@@ -622,13 +880,13 @@
         `).join('')
         : `<tr><td colspan="4" class="micro" style="text-align:center;padding:18px">No webhooks received yet.</td></tr>`;
 
-      // Settings fields
-      document.getElementById('cfgBrand').value = adminState.config.brandName || '';
-      document.getElementById('cfgEnv').value = adminState.config.checkbookEnv || 'sandbox';
-      document.getElementById('cfgFromEmail').value = adminState.config.fromEmail || '';
-      document.getElementById('cfgSmtpHost').value = adminState.config.smtpHost || '';
-      document.getElementById('cfgSmtpPort').value = adminState.config.smtpPort || '587';
-      document.getElementById('cfgSmtpUser').value = adminState.config.smtpUser || '';
+      // Populate Settings inputs
+      document.getElementById('cfgBrand').value = cfg.brandName || 'Meridian Pay';
+      document.getElementById('cfgEnv').value = cfg.checkbookEnv || 'sandbox';
+      document.getElementById('cbKeyPreview').textContent = cfg.checkbookKeyPreview ? `Saved: ${cfg.checkbookKeyPreview}` : '';
+      document.getElementById('cfgSmtpHost').value = cfg.smtpHost || 'smtp.gmail.com';
+      document.getElementById('cfgSmtpPort').value = cfg.smtpPort || '587';
+      document.getElementById('cfgSmtpUser').value = cfg.smtpUser || cfg.fromEmail || '';
     }
 
     function selectCustomerForInvoice(id) {
@@ -645,11 +903,16 @@
       }
     }
 
+    function copyWebhookUrl() {
+      navigator.clipboard.writeText(document.getElementById('webhookUrlBox').textContent);
+      showToast('Webhook URL copied to clipboard.');
+    }
+
     document.getElementById('autoDebitForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('issueAutoDebitBtn');
       btn.disabled = true;
-      btn.textContent = 'Creating invoice & auto-debiting verified bank…';
+      btn.innerHTML = `<span>Issuing invoice &amp; initiating ACH auto-debit…</span>`;
       try {
         const res = await fetch('/api/admin/invoice-autodebit', {
           method: 'POST',
@@ -663,12 +926,12 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to issue auto-debit invoice');
         await loadAdminState();
-        showToast(`Invoice #${data.invoice.number} ($${data.invoice.amount.toFixed(2)}) issued & auto-debit is IN_PROCESS! Customer status email sent.`);
+        showToast(`Invoice #${data.invoice.number} ($${data.invoice.amount.toFixed(2)}) issued & auto-debit is IN_PROCESS. Customer email sent.`);
       } catch (err) {
         showToast(err.message, 'err');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Issue & Auto-Debit Invoice Now →';
+        btn.innerHTML = `<span>Issue &amp; Auto-Debit Invoice Now</span><svg width="15" height="15"><use href="#i-arrow-right"/></svg>`;
       }
     });
 
@@ -676,7 +939,7 @@
       e.preventDefault();
       const btn = document.getElementById('payoutBtn');
       btn.disabled = true;
-      btn.textContent = 'Sending payout via Checkbook…';
+      btn.innerHTML = `<span>Sending payout via Checkbook…</span>`;
       try {
         const res = await fetch('/api/admin/payout', {
           method: 'POST',
@@ -692,12 +955,12 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to send payout');
         await loadAdminState();
-        showToast(`Payout #${data.payout.number} ($${data.payout.amount.toFixed(2)}) sent to ${data.payout.name}!`);
+        showToast(`Payout #${data.payout.number} ($${data.payout.amount.toFixed(2)}) sent to ${data.payout.name}.`);
       } catch (err) {
         showToast(err.message, 'err');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Send Payout via Checkbook →';
+        btn.innerHTML = `<span>Send Payout via Checkbook</span><svg width="15" height="15"><use href="#i-arrow-right"/></svg>`;
       }
     });
 
@@ -709,25 +972,22 @@
       });
       if (res.ok) {
         await loadAdminState();
-        showToast(`Webhook (${type} -> ${status}) processed! Customer settlement email sent.`);
+        showToast(`Webhook (${type} -> ${status}) processed. Customer settlement email sent.`);
       }
     }
 
-    document.getElementById('configForm').addEventListener('submit', async (e) => {
+    // Save Gmail Settings Only
+    document.getElementById('gmailForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const smtpUser = document.getElementById('cfgSmtpUser').value.trim();
       const payload = {
-        brandName: document.getElementById('cfgBrand').value,
-        checkbookEnv: document.getElementById('cfgEnv').value,
-        fromEmail: document.getElementById('cfgFromEmail').value,
-        smtpHost: document.getElementById('cfgSmtpHost').value,
-        smtpPort: document.getElementById('cfgSmtpPort').value,
-        smtpUser: document.getElementById('cfgSmtpUser').value
+        smtpHost: document.getElementById('cfgSmtpHost').value.trim() || 'smtp.gmail.com',
+        smtpPort: document.getElementById('cfgSmtpPort').value.trim() || '587',
+        smtpUser,
+        fromEmail: smtpUser
       };
-      if (document.getElementById('cfgCbKey').value) payload.checkbookKey = document.getElementById('cfgCbKey').value;
-      if (document.getElementById('cfgCbSecret').value) payload.checkbookSecret = document.getElementById('cfgCbSecret').value;
-      if (document.getElementById('cfgWebhook').value) payload.webhookSecret = document.getElementById('cfgWebhook').value;
-      if (document.getElementById('cfgBrevo').value) payload.brevoApiKey = document.getElementById('cfgBrevo').value;
-      if (document.getElementById('cfgSmtpPass').value) payload.smtpPass = document.getElementById('cfgSmtpPass').value;
+      const passVal = document.getElementById('cfgSmtpPass').value.trim();
+      if (passVal) payload.smtpPass = passVal.replace(/\s+/g, '');
 
       const res = await fetch('/api/admin/config', {
         method: 'POST',
@@ -735,8 +995,73 @@
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        document.getElementById('cfgSmtpPass').value = '';
         await loadAdminState();
-        showToast('Settings saved!');
+        showToast('Gmail SMTP settings saved.');
+      }
+    });
+
+    // Save & Send Live Test Email via Gmail SMTP
+    async function saveAndTestGmail() {
+      const btn = document.getElementById('testGmailBtn');
+      const smtpUser = document.getElementById('cfgSmtpUser').value.trim();
+      const passVal = document.getElementById('cfgSmtpPass').value.trim();
+      if (!smtpUser) {
+        showToast('Please enter your Gmail address first.', 'err');
+        return;
+      }
+      btn.disabled = true;
+      btn.innerHTML = `<span>Connecting to smtp.gmail.com…</span>`;
+      try {
+        const payload = {
+          smtpHost: document.getElementById('cfgSmtpHost').value.trim() || 'smtp.gmail.com',
+          smtpPort: document.getElementById('cfgSmtpPort').value.trim() || '587',
+          smtpUser,
+          fromEmail: smtpUser,
+          testRecipient: smtpUser
+        };
+        if (passVal) payload.smtpPass = passVal.replace(/\s+/g, '');
+
+        const res = await fetch('/api/admin/test-smtp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Gmail SMTP test failed');
+        document.getElementById('cfgSmtpPass').value = '';
+        await loadAdminState();
+        showToast(data.message);
+      } catch (err) {
+        showToast(err.message, 'err');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="15" height="15"><use href="#i-mail"/></svg><span>Save &amp; Send Test Email</span>`;
+      }
+    }
+
+    // Save Checkbook Settings
+    document.getElementById('cbConfigForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        brandName: document.getElementById('cfgBrand').value.trim() || 'Meridian Pay',
+        checkbookEnv: document.getElementById('cfgEnv').value
+      };
+      if (document.getElementById('cfgCbKey').value.trim()) payload.checkbookKey = document.getElementById('cfgCbKey').value.trim();
+      if (document.getElementById('cfgCbSecret').value.trim()) payload.checkbookSecret = document.getElementById('cfgCbSecret').value.trim();
+      if (document.getElementById('cfgWebhook').value.trim()) payload.webhookSecret = document.getElementById('cfgWebhook').value.trim();
+
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        document.getElementById('cfgCbKey').value = '';
+        document.getElementById('cfgCbSecret').value = '';
+        document.getElementById('cfgWebhook').value = '';
+        await loadAdminState();
+        showToast('Checkbook API settings saved.');
       }
     });
 

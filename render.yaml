@@ -3,5 +3,14 @@ services:
     name: meridian-pay
     env: node
     plan: free
-    buildCommand: npm install
-    startCommand: node server.js
+    buildCommand: yarn install
+    startCommand: node --no-deprecation server.js
+    envVars:
+      - key: CHECKBOOK_ENV
+        value: sandbox
+      - key: BRAND_NAME
+        value: Meridian Pay
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"

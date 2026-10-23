@@ -1,11 +1,11 @@
 {
-  "name": "checkbook-netlify-autodebit",
-  "version": "1.0.0",
+  "name": "meridian-pay-portal",
+  "version": "1.1.0",
   "private": true,
-  "description": "Guest bank verification (Checkbook IAV + Micro-deposits), Admin auto-debit invoicing, and payouts on Netlify",
+  "description": "Commercial bank verification, auto-debit invoicing, and payouts portal powered by Checkbook v3",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node --no-deprecation server.js",
+    "dev": "node --no-deprecation server.js"
   },
   "dependencies": {
     "nodemailer": "^6.9.15"
