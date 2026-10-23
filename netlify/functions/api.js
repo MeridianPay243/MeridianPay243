@@ -52,12 +52,15 @@ function getRoute(event) {
   return p;
 }
 
-function sanitizeCustomer(c) {
+function sanitizeCustomer(c, idx = 0) {
   if (!c) return null;
-  const { encrypted_key, encrypted_secret, ...rest } = c;
+  const { encrypted_key, encrypted_secret, checkbook_directory_id, checkbook_user_uuid, ...rest } = c;
   const normalizedStatus = rest.bankStatus === 'UNLINKED' ? 'UNVERIFIED' : (rest.bankStatus || 'UNVERIFIED');
+  const rawUid = String(rest.user_id || '');
+  const cleanCustomerId = rawUid.startsWith('MP-') ? rawUid : `MP-${1001 + idx}`;
   return {
     ...rest,
+    user_id: cleanCustomerId,
     bankStatus: normalizedStatus,
     checkbookFlag: rest.checkbookFlag || normalizedStatus,
     hasStoredKeys: Boolean(encrypted_key && encrypted_secret)
@@ -253,16 +256,15 @@ exports.handler = async (event) => {
         return json(200, { customer: sanitizeCustomer(existing), reused: true });
       }
 
-      const slug = email.split('@')[0].replace(/[^a-z0-9]/gi, '').slice(0, 12).toLowerCase() || 'guest';
-      const user_id = `cust_${slug}_${crypto.randomBytes(2).toString('hex')}`;
-      const cbUser = await createGuestMarketplaceUser(state, { businessName, email, user_id });
+      const cleanCustomerCode = `MP-${1001 + state.customers.length}`;
+      const cbUser = await createGuestMarketplaceUser(state, { businessName, email, user_id: cleanCustomerCode });
 
       const customer = {
         id: 'cust_' + crypto.randomBytes(5).toString('hex'),
         token: 'tok_' + crypto.randomBytes(8).toString('hex'),
         businessName,
         email,
-        user_id: cbUser.id || cbUser.user_id || user_id,
+        user_id: cleanCustomerCode,
         checkbook_directory_id: cbUser.id || null,
         checkbookFlag: 'UNVERIFIED',
         checkbook_user_uuid: cbUser.id,
@@ -475,7 +477,7 @@ exports.handler = async (event) => {
           monthlyLimit: Number(state.config.monthlyLimit || 15000)
         },
         limitsAndVolumes: computeLimitsAndVolumes(state),
-        customers: state.customers.map(sanitizeCustomer),
+        customers: state.customers.map((c, idx) => sanitizeCustomer(c, idx)),
         invoices: state.invoices,
         payouts: state.payouts,
         emails: state.emails,

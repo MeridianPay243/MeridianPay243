@@ -199,12 +199,14 @@ async function syncWithCheckbookDashboard(state) {
   });
 
   if (dirRes.ok && Array.isArray(dirRes.data.entries)) {
-    for (const entry of dirRes.data.entries) {
+    for (let idx = 0; idx < dirRes.data.entries.length; idx++) {
+      const entry = dirRes.data.entries[idx];
       if (!entry.email) continue;
       const emailLower = String(entry.email).trim().toLowerCase();
       const cbAccounts = Array.isArray(entry.accounts) ? entry.accounts : [];
       const firstAcct = cbAccounts.length > 0 ? cbAccounts[0] : null;
       const cbBankStatus = firstAcct ? (firstAcct.status || 'VERIFIED') : 'UNVERIFIED';
+      const cleanCustomerCode = `MP-${1001 + idx}`;
 
       let existing = state.customers.find(
         c => c.email.toLowerCase() === emailLower || c.checkbook_directory_id === entry.id
@@ -216,7 +218,7 @@ async function syncWithCheckbookDashboard(state) {
           token: 'tok_cb_' + String(entry.id || shortId).slice(0, 16),
           businessName: entry.name || emailLower,
           email: emailLower,
-          user_id: entry.id,
+          user_id: cleanCustomerCode,
           checkbook_directory_id: entry.id,
           checkbookFlag: cbBankStatus,
           checkbook_user_uuid: null,
@@ -238,7 +240,9 @@ async function syncWithCheckbookDashboard(state) {
         existing.businessName = entry.name || existing.businessName;
         existing.email = emailLower;
         existing.checkbook_directory_id = entry.id;
-        existing.user_id = entry.id;
+        if (!existing.user_id || !String(existing.user_id).startsWith('MP-')) {
+          existing.user_id = cleanCustomerCode;
+        }
         if (existing.bankStatus === 'UNLINKED') {
           existing.bankStatus = 'UNVERIFIED';
         }

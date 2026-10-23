@@ -553,9 +553,9 @@
                       <input type="checkbox" id="selectAllUnverified" onchange="toggleSelectAllUnverified(this.checked)" style="width:15px;height:15px;cursor:pointer" title="Select all unverified customers" />
                     </th>
                     <th>Business &amp; Email</th>
-                    <th>Checkbook Profile</th>
+                    <th>Customer ID</th>
                     <th>Linked Bank</th>
-                    <th>Checkbook Flag</th>
+                    <th>Status</th>
                     <th style="text-align:right">Action</th>
                   </tr>
                 </thead>
@@ -1161,7 +1161,6 @@
             const inviteBadge = c.lastInviteSentAt
               ? `<span class="pill pill-green" style="margin-left:6px;padding:1px 7px;font-size:10px">✓ Invite Sent</span>`
               : '';
-            const cbProfileId = String(c.checkbook_directory_id || c.user_id || '').slice(0, 12);
             const flagStatus = c.checkbookFlag || (c.bankStatus === 'UNLINKED' ? 'UNVERIFIED' : c.bankStatus);
             return `
         <tr>
@@ -1175,7 +1174,7 @@
             <div class="micro">${c.email}</div>
           </td>
           <td>
-            <span class="mono" title="${c.checkbook_directory_id || c.user_id}">${cbProfileId}…</span>
+            <span class="mono">${c.user_id}</span>
           </td>
           <td>${c.accountLast4 ? `${c.bankName || 'Bank'} •••• ${c.accountLast4}` : '<span class="micro">No Bank Linked</span>'}</td>
           <td>${badgeForStatus(flagStatus)}</td>
