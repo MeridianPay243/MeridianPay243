@@ -33,6 +33,10 @@ async function sendCustomerEmail(state, { to, subject, html, tag, meta }) {
         host,
         port,
         secure: port === 465,
+        family: 4,
+        connectionTimeout: 7000,
+        greetingTimeout: 7000,
+        socketTimeout: 10000,
         auth: { user, pass }
       });
       await transporter.sendMail({
@@ -90,6 +94,10 @@ async function verifyAndSendTestEmail(state, testRecipient) {
     host,
     port,
     secure: port === 465,
+    family: 4,
+    connectionTimeout: 7000,
+    greetingTimeout: 7000,
+    socketTimeout: 10000,
     auth: { user, pass }
   });
 
