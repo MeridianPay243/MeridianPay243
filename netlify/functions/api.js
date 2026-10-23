@@ -1,147 +1,155 @@
 const crypto = require('crypto');
-const { loadState, saveState, encryptText, decryptText } = require('./_lib/store');
 const {
-  createMarketplaceUser,
-  getInstitutions,
-  instantVerifyBank,
-  addManualBankAndRelease,
-  verifyMicroDeposits,
+  loadState,
+  saveState,
+  encryptText,
+  decryptText,
+  createAdminToken,
+  verifyAdminToken
+} = require('./_lib/store');
+const {
+  createGuestMarketplaceUser,
+  listInstitutionsForCustomer,
+  linkBankViaCheckbookIAV,
+  linkBankViaMicrodeposits,
+  verifyMicrodeposits,
   issueAndAutoDebitInvoice,
-  sendPayout,
-  verifyWebhookSignature,
-  hasLiveOwnerKeys
+  sendOutboundDigitalCheck,
+  verifyWebhookSignature
 } = require('./_lib/checkbook');
-const { sendCustomerEmail, verifyAndSendTestEmail } = require('./_lib/mailer');
+const {
+  sendCustomerEmail,
+  verifyAndSendTestEmail,
+  emailBankPendingTemplate,
+  emailInvoiceAutoDebitInitiatedTemplate,
+  emailInvoicePaidWebhookTemplate,
+  emailPayoutSentTemplate
+} = require('./_lib/mailer');
 
-function ensureSeeded(state) {
-  if (state.customers.length === 0) {
-    const sampleToken = 'tok_demo_northwind';
-    state.customers.push({
-      id: 'cust_demo_01',
-      token: sampleToken,
-      businessName: 'Northwind Studio LLC',
-      email: 'dana@northwind.co',
-      user_id: 'cust_northwind_8f2a',
-      checkbook_user_uuid: '9d7263e9db75473d8acf259b77c99df4',
-      encryptedAuth: encryptText('sim_pub_northwind:sim_sec_northwind'),
-      bank_id: 'bank_1bc0ce98ce',
-      bankName: 'JPMorgan Chase Bank, N.A.',
-      routing: '322271627',
-      accountLast4: '6789',
-      accountType: 'BUSINESS',
-      verificationMethod: 'MICRODEPOSITS',
-      bankStatus: 'VERIFIED',
-      attemptsRemaining: 3,
-      mandateSignedAt: new Date(Date.now() - 3600 * 1000).toISOString(),
-      createdAt: new Date(Date.now() - 3600 * 1000).toISOString()
-    });
-    saveState(state);
-  }
-}
-
-function getCustomerAuth(customer) {
-  return decryptText(customer.encryptedAuth);
-}
-
-function sanitizeCustomer(c) {
-  const { encryptedAuth, ...rest } = c;
-  return { ...rest, hasStoredKeys: Boolean(encryptedAuth) };
-}
-
-function jsonResponse(statusCode, obj) {
+function json(statusCode, payload) {
   return {
     statusCode,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, signature'
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-token, signature',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
     },
-    body: JSON.stringify(obj)
+    body: JSON.stringify(payload)
   };
 }
 
-function applyConfigUpdates(state, body) {
-  const fields = [
-    'brandName',
-    'checkbookEnv',
-    'checkbookKey',
-    'checkbookSecret',
-    'webhookSecret',
-    'smtpHost',
-    'smtpPort',
-    'smtpUser',
-    'smtpPass',
-    'fromEmail'
-  ];
-  fields.forEach(f => {
-    if (body[f] !== undefined && body[f] !== '__KEEP__' && String(body[f]).trim() !== '') {
-      let val = String(body[f]).trim();
-      if (f === 'smtpPass') {
-        val = val.replace(/\s+/g, '');
-      }
-      state.config[f] = val;
-    }
-  });
-  if (!state.config.smtpHost) state.config.smtpHost = 'smtp.gmail.com';
-  if (!state.config.smtpPort) state.config.smtpPort = '587';
-  if (!state.config.fromEmail && state.config.smtpUser) {
-    state.config.fromEmail = state.config.smtpUser;
+function getRoute(event) {
+  let p = event.path || '/';
+  p = p.replace(/^\/\.netlify\/functions\/api/, '');
+  p = p.replace(/^\/api/, '');
+  if (!p.startsWith('/')) p = '/' + p;
+  return p;
+}
+
+function sanitizeCustomer(c) {
+  if (!c) return null;
+  const { encrypted_key, encrypted_secret, ...rest } = c;
+  return {
+    ...rest,
+    hasStoredKeys: Boolean(encrypted_key && encrypted_secret)
+  };
+}
+
+function extractAdminToken(event) {
+  const headers = event.headers || {};
+  const auth = headers.authorization || headers.Authorization || '';
+  if (auth.startsWith('Bearer ')) {
+    return auth.slice(7).trim();
   }
+  return headers['x-admin-token'] || headers['X-Admin-Token'] || '';
 }
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
-    return jsonResponse(200, { ok: true });
+    return json(200, { ok: true });
   }
 
-  const state = loadState();
-  ensureSeeded(state);
-
-  const rawPath = (event.path || '')
-    .replace(/^\/\.netlify\/functions\/api/, '')
-    .replace(/^\/api/, '') || '/';
+  const route = getRoute(event);
   const method = event.httpMethod || 'GET';
-  const query = event.queryStringParameters || {};
+  const rawBody = event.body || '';
   let body = {};
-  if (event.body) {
+  if (rawBody) {
     try {
-      body = JSON.parse(event.body);
-    } catch {
+      body = JSON.parse(rawBody);
+    } catch (e) {
       body = {};
     }
   }
 
+  const state = loadState();
+  const brandName = state.config.brandName || 'Meridian Pay';
+
   try {
-    // 1. Start Guest Profile (Business Name + Email ONLY -> POST /v3/user)
-    if (method === 'POST' && rawPath === '/guest/start') {
-      const businessName = String(body.businessName || '').trim();
+    // 0. Public Brand Config for Guest Home Page (No Secrets)
+    if (method === 'GET' && route === '/public/config') {
+      return json(200, {
+        brandName,
+        checkbookEnv: state.config.checkbookEnv || 'sandbox'
+      });
+    }
+
+    // 0B. Admin Login Endpoint (Koaa0@hotmail.com / 243@love)
+    if (method === 'POST' && route === '/admin/login') {
       const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+      const expectedEmail = String(state.config.adminEmail || 'Koaa0@hotmail.com').trim().toLowerCase();
+      const expectedPass = String(state.config.adminPassword || '243@love');
+
+      if (!email || !password || email !== expectedEmail || password !== expectedPass) {
+        return json(401, { error: 'Invalid admin email or password.' });
+      }
+
+      const token = createAdminToken(state);
+      return json(200, {
+        ok: true,
+        token,
+        adminEmail: state.config.adminEmail || 'Koaa0@hotmail.com',
+        brandName
+      });
+    }
+
+    // Protect all /admin/* endpoints with Admin Authentication
+    if (route.startsWith('/admin/')) {
+      const token = extractAdminToken(event);
+      if (!verifyAdminToken(token, state)) {
+        return json(401, { error: 'Admin authentication required. Please sign in.' });
+      }
+    }
+
+    // 1. Guest Step 1: Business Name + Email ONLY -> POST /v3/user
+    if (method === 'POST' && route === '/guest/start') {
+      const businessName = (body.businessName || '').trim();
+      const email = (body.email || '').trim().toLowerCase();
       if (!businessName || !email || !email.includes('@')) {
-        return jsonResponse(400, { error: 'Please enter both your Business Name and a valid Email address.' });
+        return json(400, { error: 'Please provide both Business Name and a valid Email.' });
       }
 
-      let existing = state.customers.find(c => c.email === email);
+      let existing = state.customers.find(c => c.email.toLowerCase() === email);
       if (existing) {
-        return jsonResponse(200, {
-          customer: sanitizeCustomer(existing),
-          reused: true
-        });
+        existing.businessName = businessName;
+        saveState(state);
+        return json(200, { customer: sanitizeCustomer(existing), reused: true });
       }
 
-      const slugBase = businessName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 14) || 'guest';
-      const userIdSlug = `cust_${slugBase}_${crypto.randomBytes(2).toString('hex')}`;
-
-      const cbUser = await createMarketplaceUser(state, { businessName, userIdSlug });
-      const token = 'tok_' + crypto.randomBytes(12).toString('hex');
+      const slug = email.split('@')[0].replace(/[^a-z0-9]/gi, '').slice(0, 12).toLowerCase() || 'guest';
+      const user_id = `cust_${slug}_${crypto.randomBytes(2).toString('hex')}`;
+      const cbUser = await createGuestMarketplaceUser(state, { businessName, user_id });
 
       const customer = {
-        id: 'cust_' + crypto.randomBytes(6).toString('hex'),
-        token,
+        id: 'cust_' + crypto.randomBytes(5).toString('hex'),
+        token: 'tok_' + crypto.randomBytes(8).toString('hex'),
         businessName,
         email,
-        user_id: cbUser.user_id,
+        user_id: cbUser.user_id || user_id,
         checkbook_user_uuid: cbUser.id,
-        encryptedAuth: encryptText(`${cbUser.key}:${cbUser.secret}`),
+        encrypted_key: encryptText(cbUser.key),
+        encrypted_secret: encryptText(cbUser.secret),
         bank_id: null,
         bankName: null,
         routing: null,
@@ -156,394 +164,452 @@ exports.handler = async (event) => {
 
       state.customers.unshift(customer);
       saveState(state);
-
-      return jsonResponse(200, { customer: sanitizeCustomer(customer) });
+      return json(200, { customer: sanitizeCustomer(customer), reused: false });
     }
 
-    // 2. Load Guest Session by Magic Link Token
-    if (method === 'GET' && rawPath === '/guest/session') {
-      const token = String(query.token || '').trim();
+    // 2. Load guest session by token (for magic link return)
+    if (method === 'GET' && route === '/guest/session') {
+      const token = (event.queryStringParameters && event.queryStringParameters.token) || '';
       const customer = state.customers.find(c => c.token === token);
       if (!customer) {
-        return jsonResponse(404, { error: 'Verification session not found.' });
+        return json(404, { error: 'Guest verification session not found.' });
       }
-      return jsonResponse(200, {
-        customer: sanitizeCustomer(customer),
-        brandName: state.config.brandName,
-        checkbookEnv: state.config.checkbookEnv
-      });
+      return json(200, { customer: sanitizeCustomer(customer), brandName });
     }
 
-    // 3. Get Supported Institutions for Checkbook Built-in IAV (GET /v3/account/bank/institutions)
-    if (method === 'GET' && rawPath === '/bank/institutions') {
-      const token = String(query.token || '').trim();
-      const customer = state.customers.find(c => c.token === token);
-      const userAuth = customer ? getCustomerAuth(customer) : null;
-      const institutions = await getInstitutions(state, userAuth);
+    // 3. List institutions for Checkbook IAV (GET /v3/account/bank/institutions)
+    if (method === 'GET' && route === '/bank/institutions') {
+      const token = (event.queryStringParameters && event.queryStringParameters.token) || '';
+      const customer = state.customers.find(c => c.token === token) || state.customers[0];
+      const custKey = customer ? decryptText(customer.encrypted_key) : 'demo';
+      const custSecret = customer ? decryptText(customer.encrypted_secret) : 'demo';
+      const inst = await listInstitutionsForCustomer(state, custKey, custSecret);
       saveState(state);
-      return jsonResponse(200, { institutions });
+      return json(200, inst);
     }
 
-    // 4. Instant Bank Verification via Checkbook IAV (POST /v3/account/bank/iav + POST /v3/account/bank)
-    if (method === 'POST' && rawPath === '/bank/iav') {
+    // 4. Link bank via Checkbook Built-in IAV (POST /v3/account/bank/iav -> POST /v3/account/bank)
+    if (method === 'POST' && route === '/bank/iav') {
       const { token, institution_id, institution_name, login, password, type } = body;
       const customer = state.customers.find(c => c.token === token);
-      if (!customer) return jsonResponse(404, { error: 'Session not found.' });
-      if (!institution_id || !login || !password) {
-        return jsonResponse(400, { error: 'Please select a bank and enter your bank login credentials.' });
-      }
+      if (!customer) return json(404, { error: 'Guest session not found.' });
 
-      const userAuth = getCustomerAuth(customer);
-      const result = await instantVerifyBank(state, userAuth, {
-        institution_id,
-        institution_name,
-        login,
-        password,
+      const custKey = decryptText(customer.encrypted_key);
+      const custSecret = decryptText(customer.encrypted_secret);
+
+      const res = await linkBankViaCheckbookIAV(state, custKey, custSecret, {
+        institution_id: institution_id || 'c7b3cb4a243a4427b2bd12871d8f6deb',
+        institution_name: institution_name || 'JPMorgan Chase Bank',
+        login: login || 'user_good',
+        password: password || 'pass_good',
         type: type || 'BUSINESS'
       });
 
-      customer.bank_id = result.bank_id;
-      customer.bankName = result.bankName;
-      customer.routing = result.routing;
-      customer.accountLast4 = result.accountLast4;
-      customer.accountType = result.type;
+      if (!res.ok) {
+        saveState(state);
+        return json(res.status || 400, { error: res.error });
+      }
+
+      customer.bank_id = res.bank.id;
+      customer.bankName = res.bank.name;
+      customer.routing = res.bank.routing;
+      customer.accountLast4 = res.bank.accountLast4;
+      customer.accountType = res.bank.type;
       customer.verificationMethod = 'CHECKBOOK_IAV';
       customer.bankStatus = 'VERIFIED';
 
-      await sendCustomerEmail(state, {
-        to: customer.email,
-        subject: `${state.config.brandName}: Bank account •••• ${customer.accountLast4} verified for auto-debit`,
-        tag: 'BANK_VERIFIED',
-        meta: { customerId: customer.id, bankLast4: customer.accountLast4 },
-        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
-          <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:#E7F6F0;color:#07714E;font-size:11px;font-weight:700;margin-bottom:10px">BANK VERIFIED</div>
-          <h2 style="margin:0 0 8px;color:#0a1220">Bank Account Verified — ${customer.businessName}</h2>
-          <p style="color:#475467;line-height:1.55">Your bank account <b>${customer.bankName} (•••• ${customer.accountLast4})</b> has been verified via Instant Bank Verification.</p>
-          <p style="color:#475467;line-height:1.55"><b>No further action is required.</b> Whenever an invoice is issued to <b>${customer.businessName}</b>, payment will be debited automatically and we will email your receipt and settlement status updates to <b>${customer.email}</b>.</p>
-        </div>`
-      });
-
       saveState(state);
-      return jsonResponse(200, { customer: sanitizeCustomer(customer) });
+      return json(200, { customer: sanitizeCustomer(customer) });
     }
 
-    // 5. Manual Routing & Account + Micro-Deposits (POST /v3/account/bank + POST /v3/account/bank/release)
-    if (method === 'POST' && rawPath === '/bank/manual') {
-      const { token, routing, account, type, bankName } = body;
+    // 5. Link bank via Manual Routing + Account (Micro-deposits: POST /v3/account/bank + /release)
+    if (method === 'POST' && route === '/bank/manual') {
+      const { token, routing, account, bankName, type, origin } = body;
       const customer = state.customers.find(c => c.token === token);
-      if (!customer) return jsonResponse(404, { error: 'Session not found.' });
+      if (!customer) return json(404, { error: 'Guest session not found.' });
 
       const cleanRouting = String(routing || '').replace(/\D/g, '');
       const cleanAccount = String(account || '').replace(/\D/g, '');
-      if (cleanRouting.length !== 9) {
-        return jsonResponse(400, { error: 'Routing number must be 9 digits.' });
-      }
-      if (cleanAccount.length < 4) {
-        return jsonResponse(400, { error: 'Please enter a valid bank account number.' });
+      if (cleanRouting.length !== 9 || cleanAccount.length < 4) {
+        return json(400, { error: 'Please enter a valid 9-digit ABA routing number and account number.' });
       }
 
-      const userAuth = getCustomerAuth(customer);
-      const result = await addManualBankAndRelease(state, userAuth, {
+      const custKey = decryptText(customer.encrypted_key);
+      const custSecret = decryptText(customer.encrypted_secret);
+
+      const res = await linkBankViaMicrodeposits(state, custKey, custSecret, {
         routing: cleanRouting,
         account: cleanAccount,
         type: type || 'BUSINESS',
-        bankName: bankName || 'Business Checking'
+        bankName: bankName || 'Business Checking Account'
       });
 
-      customer.bank_id = result.bank_id;
-      customer.bankName = result.bankName;
-      customer.routing = result.routing;
-      customer.accountLast4 = result.accountLast4;
-      customer.accountType = result.type;
+      if (!res.ok) {
+        saveState(state);
+        return json(res.status || 400, { error: res.error });
+      }
+
+      customer.bank_id = res.bank.id;
+      customer.bankName = res.bank.name;
+      customer.routing = res.bank.routing;
+      customer.accountLast4 = res.bank.accountLast4;
+      customer.accountType = res.bank.type;
       customer.verificationMethod = 'MICRODEPOSITS';
       customer.bankStatus = 'PENDING';
       customer.attemptsRemaining = 3;
 
-      const returnUrl = `${body.origin || ''}/?token=${customer.token}`;
-      await sendCustomerEmail(state, {
+      const baseOrigin = origin || 'https://meridianpay243.onrender.com';
+      const verifyUrl = `${baseOrigin}/?token=${customer.token}`;
+
+      const emailRec = await sendCustomerEmail(state, {
         to: customer.email,
-        subject: `${state.config.brandName}: Confirm your 2 micro-deposits for ${customer.businessName}`,
-        tag: 'MICRODEPOSIT_LINK',
-        meta: { customerId: customer.id, returnUrl },
-        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
-          <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:#FEF6EE;color:#B54708;font-size:11px;font-weight:700;margin-bottom:10px">MICRO-DEPOSITS SENT</div>
-          <h2 style="margin:0 0 8px;color:#0a1220">Two micro-deposits are on the way</h2>
-          <p style="color:#475467;line-height:1.55">We initiated two small credits under $1.00 to <b>${customer.bankName} (•••• ${customer.accountLast4})</b> for <b>${customer.businessName}</b>.</p>
-          <p style="margin:22px 0"><a href="${returnUrl}" style="background:#0B8F63;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">Confirm Micro-Deposit Amounts &rarr;</a></p>
-          <p style="color:#667085;font-size:12px;margin:0">Direct verification link: ${returnUrl}</p>
-        </div>`
+        subject: `Confirm your 2 micro-deposits for account •••• ${customer.accountLast4}`,
+        tag: 'MICRODEPOSITS_RELEASED',
+        meta: { verifyUrl, customerId: customer.id },
+        html: emailBankPendingTemplate({
+          brandName,
+          businessName: customer.businessName,
+          verifyUrl,
+          accountLast4: customer.accountLast4
+        })
       });
 
       saveState(state);
-      return jsonResponse(200, { customer: sanitizeCustomer(customer), returnUrl });
+      return json(200, {
+        customer: sanitizeCustomer(customer),
+        verifyUrl,
+        emailSent: emailRec
+      });
     }
 
-    // 6. Verify Micro-Deposit Amounts (POST /v3/account/bank/verify)
-    if (method === 'POST' && rawPath === '/bank/verify') {
+    // 6. Confirm two micro-deposit amounts (POST /v3/account/bank/verify)
+    if (method === 'POST' && route === '/bank/verify') {
       const { token, amount_1, amount_2 } = body;
       const customer = state.customers.find(c => c.token === token);
-      if (!customer) return jsonResponse(404, { error: 'Session not found.' });
-      if (!customer.bank_id) return jsonResponse(400, { error: 'No pending bank account on file.' });
-      if (customer.attemptsRemaining <= 0) {
-        return jsonResponse(400, { error: 'Maximum verification attempts exceeded. Please add your bank account again.' });
-      }
+      if (!customer) return json(404, { error: 'Guest session not found.' });
+      if (!customer.bank_id) return json(400, { error: 'No pending bank account found.' });
 
-      const userAuth = getCustomerAuth(customer);
-      try {
-        await verifyMicroDeposits(state, userAuth, {
-          bank_id: customer.bank_id,
-          amount_1,
-          amount_2
-        });
-      } catch (err) {
+      const custKey = decryptText(customer.encrypted_key);
+      const custSecret = decryptText(customer.encrypted_secret);
+
+      const res = await verifyMicrodeposits(state, custKey, custSecret, {
+        bank_id: customer.bank_id,
+        amount_1,
+        amount_2
+      });
+
+      if (!res.ok) {
         customer.attemptsRemaining = Math.max(0, (customer.attemptsRemaining || 3) - 1);
         saveState(state);
-        return jsonResponse(400, {
-          error: `${err.message} (${customer.attemptsRemaining} attempts remaining)`
+        return json(res.status || 400, {
+          error: res.error,
+          attemptsRemaining: customer.attemptsRemaining
         });
       }
 
       customer.bankStatus = 'VERIFIED';
-
-      await sendCustomerEmail(state, {
-        to: customer.email,
-        subject: `${state.config.brandName}: Bank account •••• ${customer.accountLast4} is now VERIFIED`,
-        tag: 'BANK_VERIFIED',
-        meta: { customerId: customer.id, bankLast4: customer.accountLast4 },
-        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
-          <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:#E7F6F0;color:#07714E;font-size:11px;font-weight:700;margin-bottom:10px">BANK VERIFIED</div>
-          <h2 style="margin:0 0 8px;color:#0a1220">Bank Verified — Setup Complete</h2>
-          <p style="color:#475467;line-height:1.55">Your bank account <b>${customer.bankName || 'Bank'} (•••• ${customer.accountLast4})</b> for <b>${customer.businessName}</b> is now <b>VERIFIED</b>.</p>
-          <p style="color:#475467;line-height:1.55">Whenever an invoice is issued to your business, payment will be debited automatically and we will email your receipt and settlement status updates to <b>${customer.email}</b>.</p>
-        </div>`
-      });
-
       saveState(state);
-      return jsonResponse(200, { customer: sanitizeCustomer(customer) });
+      return json(200, { customer: sanitizeCustomer(customer) });
     }
 
-    // 7. Admin Portal State
-    if (method === 'GET' && rawPath === '/admin/state') {
-      return jsonResponse(200, {
+    // 7. Admin Portal State (Protected by Admin Auth)
+    if (method === 'GET' && route === '/admin/state') {
+      return json(200, {
         config: {
           brandName: state.config.brandName,
           checkbookEnv: state.config.checkbookEnv,
-          hasLiveCheckbookKeys: hasLiveOwnerKeys(state.config),
-          checkbookKeyPreview: state.config.checkbookKey ? state.config.checkbookKey.slice(0, 6) + '…' : '',
+          hasLiveCheckbookKeys: Boolean(state.config.checkbookKey && state.config.checkbookSecret),
+          checkbookKeyPreview: state.config.checkbookKey ? state.config.checkbookKey.slice(0, 6) + '••••' : '',
           hasWebhookSecret: Boolean(state.config.webhookSecret),
           smtpHost: state.config.smtpHost || 'smtp.gmail.com',
           smtpPort: state.config.smtpPort || '587',
-          smtpUser: state.config.smtpUser || '',
-          fromEmail: state.config.fromEmail || state.config.smtpUser || '',
-          hasSmtpPass: Boolean(state.config.smtpPass && state.config.smtpUser)
+          smtpUser: state.config.smtpUser || 'efugduhfr@gmail.com',
+          fromEmail: state.config.fromEmail || state.config.smtpUser || 'efugduhfr@gmail.com',
+          hasSmtpPass: Boolean(state.config.smtpPass),
+          adminEmail: state.config.adminEmail || 'Koaa0@hotmail.com'
         },
         customers: state.customers.map(sanitizeCustomer),
         invoices: state.invoices,
         payouts: state.payouts,
-        webhooks: state.webhooks,
         emails: state.emails,
+        webhooks: state.webhooks,
         apiLogs: state.apiLogs
       });
     }
 
-    // 8. Admin 1-Click Issue & Auto-Debit Invoice
-    if (method === 'POST' && rawPath === '/admin/invoice-autodebit') {
+    // 8. Owner Issues Invoice & Auto-Debits Verified Bank Immediately
+    if (method === 'POST' && route === '/admin/invoice-autodebit') {
       const { customerId, amount, description } = body;
       const customer = state.customers.find(c => c.id === customerId);
-      if (!customer) return jsonResponse(404, { error: 'Customer not found.' });
-      if (customer.bankStatus !== 'VERIFIED' || !customer.bank_id) {
-        return jsonResponse(400, { error: 'Customer bank must be VERIFIED before issuing an auto-debit invoice.' });
-      }
-      if (!amount || Number(amount) <= 0) {
-        return jsonResponse(400, { error: 'Enter a valid invoice amount greater than $0.' });
+      if (!customer) return json(404, { error: 'Customer not found.' });
+      if (customer.bankStatus !== 'VERIFIED') {
+        return json(400, { error: 'Customer bank must be VERIFIED before issuing an auto-debit invoice.' });
       }
 
-      const userAuth = getCustomerAuth(customer);
-      const result = await issueAndAutoDebitInvoice(state, {
+      const numAmount = Number(amount);
+      if (!numAmount || numAmount <= 0) {
+        return json(400, { error: 'Enter a valid invoice amount greater than $0.' });
+      }
+
+      const invoiceNumber = `INV-${2040 + state.invoices.length + 1}`;
+      const custKey = decryptText(customer.encrypted_key);
+      const custSecret = decryptText(customer.encrypted_secret);
+
+      const res = await issueAndAutoDebitInvoice(state, {
         customer,
-        userAuth,
-        amount,
-        description: description || 'Services rendered'
+        custKey,
+        custSecret,
+        amount: numAmount,
+        description: description || 'Commercial Service Agreement',
+        invoiceNumber
       });
 
+      if (!res.ok) {
+        saveState(state);
+        return json(res.status || 400, { error: res.error });
+      }
+
       const invoiceRecord = {
-        id: result.invoice_id,
-        payment_id: result.payment_id,
-        number: result.number,
+        id: res.invoice_id,
+        payment_id: res.payment_id,
+        number: invoiceNumber,
         customerId: customer.id,
         businessName: customer.businessName,
         email: customer.email,
+        user_id: customer.user_id,
         accountLast4: customer.accountLast4,
-        amount: result.amount,
-        description: description || 'Services rendered',
-        status: result.status,
-        live: result.live,
+        amount: numAmount,
+        description: description || 'Commercial Service Agreement',
+        status: res.status || 'IN_PROCESS',
         createdAt: new Date().toISOString()
       };
+
       state.invoices.unshift(invoiceRecord);
 
-      await sendCustomerEmail(state, {
+      const emailRec = await sendCustomerEmail(state, {
         to: customer.email,
-        subject: `Invoice #${invoiceRecord.number} ($${invoiceRecord.amount.toFixed(2)}) issued — Automatic ACH debit is ${invoiceRecord.status}`,
-        tag: 'INVOICE_AUTODEBIT_IN_PROCESS',
-        meta: { invoiceId: invoiceRecord.id, status: invoiceRecord.status },
-        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
-          <div style="background:#E7F6F0;border:1px solid #BFE6D5;color:#075B40;padding:12px 16px;border-radius:8px;font-weight:600;margin-bottom:16px">
-            No action required — Automatic ACH debit initiated from ${customer.bankName || 'Bank'} •••• ${customer.accountLast4}
-          </div>
-          <h2 style="margin:0 0 6px;color:#0a1220">Invoice #${invoiceRecord.number} — $${invoiceRecord.amount.toFixed(2)}</h2>
-          <p style="color:#475467;margin:0 0 16px">Billed to <b>${customer.businessName}</b> &middot; Memo: ${invoiceRecord.description}</p>
-          <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">
-            <tr><td style="padding:8px 0;border-bottom:1px solid #eaecf0;color:#667085">Payment Status</td><td style="padding:8px 0;border-bottom:1px solid #eaecf0;text-align:right;font-weight:600;color:#0B8F63">${invoiceRecord.status} (ACH Auto-Debit)</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #eaecf0;color:#667085">Debited Account</td><td style="padding:8px 0;border-bottom:1px solid #eaecf0;text-align:right">${customer.bankName || 'Bank'} •••• ${customer.accountLast4}</td></tr>
-            <tr><td style="padding:8px 0;color:#667085">Estimated Settlement</td><td style="padding:8px 0;text-align:right">3–4 business days</td></tr>
-          </table>
-          <p style="color:#667085;font-size:12.5px;margin:0">We will automatically email you a final settlement receipt once the ACH transfer completes (status = PAID).</p>
-        </div>`
+        subject: `Invoice #${invoiceNumber} ($${numAmount.toFixed(2)}) Auto-Debit Initiated (${invoiceRecord.status})`,
+        tag: `INVOICE_${invoiceRecord.status}`,
+        meta: { invoiceId: invoiceRecord.id },
+        html: emailInvoiceAutoDebitInitiatedTemplate({
+          brandName,
+          businessName: customer.businessName,
+          invoiceNumber,
+          amount: numAmount,
+          description: invoiceRecord.description,
+          accountLast4: customer.accountLast4,
+          status: invoiceRecord.status,
+          checkbookPaymentId: invoiceRecord.payment_id
+        })
       });
 
       saveState(state);
-      return jsonResponse(200, { invoice: invoiceRecord });
+      return json(200, { invoice: invoiceRecord, emailSent: emailRec });
     }
 
-    // 9. Admin Send Outbound Payout (POST /v3/check/digital)
-    if (method === 'POST' && rawPath === '/admin/payout') {
-      const { customerId, recipientName, recipientEmail, amount, description } = body;
-      let name = String(recipientName || '').trim();
-      let recipient = String(recipientEmail || '').trim();
-      let emailToNotify = recipient;
+    // 9. Owner Sends Outbound Payment (POST /v3/check/digital)
+    if (method === 'POST' && route === '/admin/payout') {
+      const { recipientName, recipientEmail, customerId, amount, description } = body;
+      const numAmount = Number(amount);
+      if (!numAmount || numAmount <= 0) {
+        return json(400, { error: 'Enter a valid payout amount greater than $0.' });
+      }
+
+      let recipient = (recipientEmail || '').trim();
+      let name = (recipientName || '').trim();
+      let account = undefined;
 
       if (customerId) {
         const cust = state.customers.find(c => c.id === customerId);
         if (cust) {
-          name = cust.businessName;
           recipient = cust.email;
-          emailToNotify = cust.email;
+          name = cust.businessName;
+          if (cust.bank_id && cust.bankStatus === 'VERIFIED') {
+            account = cust.bank_id;
+          }
         }
       }
-      if (!name || !recipient || !amount || Number(amount) <= 0) {
-        return jsonResponse(400, { error: 'Provide recipient name, email, and a valid payout amount.' });
+
+      if (!recipient || !name) {
+        return json(400, { error: 'Provide recipient name and email (or select a verified customer).' });
       }
 
-      const result = await sendPayout(state, { name, recipient, amount, description });
+      const res = await sendOutboundDigitalCheck(state, {
+        recipient,
+        name,
+        amount: numAmount,
+        description: description || 'Vendor / Contractor Payout',
+        account
+      });
+
+      if (!res.ok) {
+        saveState(state);
+        return json(res.status || 400, { error: res.error });
+      }
+
       const payoutRecord = {
-        id: result.check_id,
-        number: result.number,
+        id: res.check.id,
+        number: res.check.number,
         name,
         recipient,
-        amount: Number(parseFloat(amount).toFixed(2)),
-        description: description || 'Payout',
-        status: result.status,
-        live: result.live,
+        amount: numAmount,
+        description: description || 'Vendor / Contractor Payout',
+        status: res.check.status || 'IN_PROCESS',
+        directDepositBankId: account || null,
         createdAt: new Date().toISOString()
       };
+
       state.payouts.unshift(payoutRecord);
 
-      if (emailToNotify && emailToNotify.includes('@')) {
-        await sendCustomerEmail(state, {
-          to: emailToNotify,
-          subject: `${state.config.brandName}: Payment of $${payoutRecord.amount.toFixed(2)} sent to ${name}`,
-          tag: 'PAYOUT_SENT',
-          meta: { checkId: payoutRecord.id, status: payoutRecord.status },
-          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
-            <h2 style="margin:0 0 8px;color:#0a1220">You have received a payment of $${payoutRecord.amount.toFixed(2)}</h2>
-            <p style="color:#475467;line-height:1.55">${state.config.brandName} sent a payout (#${payoutRecord.number}) to <b>${name}</b>.</p>
-            <p style="color:#475467;line-height:1.55">Memo: <b>${payoutRecord.description}</b> &middot; Status: <b>${payoutRecord.status}</b></p>
-          </div>`
-        });
+      await sendCustomerEmail(state, {
+        to: recipient,
+        subject: ` sent you a payment of $${numAmount.toFixed(2)} (${payoutRecord.status})`,
+        tag: `PAYOUT_${payoutRecord.status}`,
+        meta: { checkId: payoutRecord.id },
+        html: emailPayoutSentTemplate({
+          brandName,
+          recipientName: name,
+          amount: numAmount,
+          description: payoutRecord.description,
+          checkId: payoutRecord.id,
+          status: payoutRecord.status
+        })
+      });
+
+      saveState(state);
+      return json(200, { payout: payoutRecord });
+    }
+
+    // 10. Save Admin Settings (Checkbook keys & Gmail SMTP settings)
+    if (method === 'POST' && route === '/admin/config') {
+      const {
+        brandName: newBrand,
+        checkbookEnv,
+        checkbookKey,
+        checkbookSecret,
+        webhookSecret,
+        smtpHost,
+        smtpPort,
+        smtpUser,
+        smtpPass,
+        fromEmail
+      } = body;
+
+      if (typeof newBrand === 'string' && newBrand.trim()) state.config.brandName = newBrand.trim();
+      if (checkbookEnv === 'sandbox' || checkbookEnv === 'production') state.config.checkbookEnv = checkbookEnv;
+      if (typeof checkbookKey === 'string' && checkbookKey.trim()) state.config.checkbookKey = checkbookKey.trim();
+      if (typeof checkbookSecret === 'string' && checkbookSecret.trim()) state.config.checkbookSecret = checkbookSecret.trim();
+      if (typeof webhookSecret === 'string' && webhookSecret.trim()) state.config.webhookSecret = webhookSecret.trim();
+      if (typeof smtpHost === 'string' && smtpHost.trim()) state.config.smtpHost = smtpHost.trim();
+      if (typeof smtpPort === 'string' && smtpPort.trim()) state.config.smtpPort = smtpPort.trim();
+      if (typeof smtpUser === 'string' && smtpUser.trim()) {
+        state.config.smtpUser = smtpUser.trim();
+        state.config.fromEmail = (typeof fromEmail === 'string' && fromEmail.trim()) ? fromEmail.trim() : smtpUser.trim();
+      } else if (typeof fromEmail === 'string' && fromEmail.trim()) {
+        state.config.fromEmail = fromEmail.trim();
+      }
+      if (typeof smtpPass === 'string' && smtpPass.trim()) {
+        state.config.smtpPass = smtpPass.replace(/\s+/g, '');
       }
 
       saveState(state);
-      return jsonResponse(200, { payout: payoutRecord });
+      return json(200, { ok: true, message: 'Settings saved.' });
     }
 
-    // 10. Save / Update Admin Keys & Gmail SMTP Settings
-    if (method === 'POST' && rawPath === '/admin/config') {
-      applyConfigUpdates(state, body);
+    // 10B. Save & Send Live Gmail Test Email
+    if (method === 'POST' && route === '/admin/test-smtp') {
+      const { smtpHost, smtpPort, smtpUser, smtpPass, fromEmail, testRecipient } = body;
+      if (typeof smtpHost === 'string' && smtpHost.trim()) state.config.smtpHost = smtpHost.trim();
+      if (typeof smtpPort === 'string' && smtpPort.trim()) state.config.smtpPort = smtpPort.trim();
+      if (typeof smtpUser === 'string' && smtpUser.trim()) {
+        state.config.smtpUser = smtpUser.trim();
+        state.config.fromEmail = (fromEmail || smtpUser).trim();
+      }
+      if (typeof smtpPass === 'string' && smtpPass.trim()) {
+        state.config.smtpPass = smtpPass.replace(/\s+/g, '');
+      }
       saveState(state);
-      return jsonResponse(200, { ok: true, message: 'Configuration saved.' });
-    }
 
-    // 10b. Save & Test Gmail SMTP Live
-    if (method === 'POST' && rawPath === '/admin/test-smtp') {
-      applyConfigUpdates(state, body);
+      const rec = await verifyAndSendTestEmail(state, testRecipient || state.config.smtpUser);
       saveState(state);
-      const emailRec = await verifyAndSendTestEmail(state, body.testRecipient || state.config.smtpUser);
-      saveState(state);
-      return jsonResponse(200, {
+      return json(200, {
         ok: true,
-        message: `Connected to Gmail SMTP (${state.config.smtpUser})! Test email sent to ${emailRec.to}.`
+        message: `Test email sent via Gmail SMTP (${state.config.smtpHost}:${state.config.smtpPort}) as "${state.config.brandName}" <${state.config.fromEmail}> to ${rec.to}.`,
+        email: rec
       });
     }
 
-    // 11. Checkbook Webhook Receiver (POST /webhook/checkbook or /api/webhook/checkbook)
-    if (method === 'POST' && (rawPath === '/webhook/checkbook' || rawPath === '/admin/simulate-webhook')) {
+    // 11. Checkbook Webhook Receiver (POST /webhook/checkbook) + Admin Webhook Simulator
+    if (method === 'POST' && (route === '/webhook/checkbook' || route === '/admin/simulate-webhook')) {
       const sigHeader = (event.headers && (event.headers.signature || event.headers.Signature)) || '';
-      const sigCheck = rawPath === '/admin/simulate-webhook'
-        ? { verified: true, note: 'Simulated webhook trigger from Admin' }
-        : verifyWebhookSignature(event.body || '', sigHeader, state.config.webhookSecret);
+      const isSimulated = route === '/admin/simulate-webhook';
 
-      if (!sigCheck.verified) {
-        return jsonResponse(401, { error: 'Invalid webhook signature', detail: sigCheck.note });
+      let sigCheck = { valid: true, mode: 'simulated_by_admin' };
+      if (!isSimulated) {
+        sigCheck = verifyWebhookSignature(rawBody, sigHeader, state.config.webhookSecret);
+        if (!sigCheck.valid) {
+          return json(401, { error: 'Invalid Checkbook webhook HMAC signature', detail: sigCheck.mode });
+        }
       }
 
-      const evtType = String(body.type || 'INVOICE').toUpperCase();
-      const evtStatus = String(body.status || 'PAID').toUpperCase();
-      const evtId = String(body.id || '');
+      const eventType = body.type || 'INVOICE';
+      const entityId = body.id || '';
+      const newStatus = body.status || 'PAID';
 
       let matchedEntity = null;
-
-      if (evtType === 'ACCOUNT') {
-        const cust = state.customers.find(c => c.bank_id === evtId || c.user_id === body.user_id);
-        if (cust) {
-          cust.bankStatus = evtStatus;
-          matchedEntity = `Customer ${cust.businessName} bank -> ${evtStatus}`;
-        }
-      } else if (evtType === 'INVOICE') {
-        const inv = state.invoices.find(i => i.id === evtId || i.payment_id === evtId) || state.invoices[0];
+      if (eventType === 'INVOICE') {
+        const inv = state.invoices.find(i => i.id === entityId || i.payment_id === entityId) || state.invoices[0];
         if (inv) {
-          inv.status = evtStatus;
-          matchedEntity = `Invoice #${inv.number} ($${inv.amount.toFixed(2)}) -> ${evtStatus}`;
+          inv.status = newStatus;
+          matchedEntity = `Invoice #${inv.number}`;
           await sendCustomerEmail(state, {
             to: inv.email,
-            subject: `Invoice #${inv.number} Payment Status Update: ${evtStatus}`,
-            tag: `INVOICE_${evtStatus}`,
-            meta: { invoiceId: inv.id, status: evtStatus },
-            html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
-              <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:#E7F6F0;color:#07714E;font-size:11px;font-weight:700;margin-bottom:10px">PAYMENT ${evtStatus}</div>
-              <h2 style="margin:0 0 8px;color:#0a1220">Invoice #${inv.number} — ${evtStatus}</h2>
-              <p style="color:#475467;line-height:1.55">The automatic ACH payment of <b>$${inv.amount.toFixed(2)}</b> for <b>${inv.businessName}</b> (Account •••• ${inv.accountLast4}) is now <b>${evtStatus}</b>.</p>
-            </div>`
+            subject: `Payment Receipt — Invoice #${inv.number} ($${Number(inv.amount).toFixed(2)}) is ${newStatus}`,
+            tag: `WEBHOOK_INVOICE_${newStatus}`,
+            meta: { invoiceId: inv.id },
+            html: emailInvoicePaidWebhookTemplate({
+              brandName,
+              businessName: inv.businessName,
+              invoiceNumber: inv.number,
+              amount: inv.amount,
+              description: inv.description,
+              accountLast4: inv.accountLast4,
+              status: newStatus
+            })
           });
         }
-      } else if (evtType === 'CHECK') {
-        const chk = state.payouts.find(p => p.id === evtId) || state.payouts[0];
-        if (chk) {
-          chk.status = evtStatus;
-          matchedEntity = `Payout #${chk.number} ($${chk.amount.toFixed(2)}) -> ${evtStatus}`;
+      } else if (eventType === 'CHECK') {
+        const pay = state.payouts.find(p => p.id === entityId) || state.payouts[0];
+        if (pay) {
+          pay.status = newStatus;
+          matchedEntity = `Payout #${pay.number}`;
+        }
+      } else if (eventType === 'ACCOUNT') {
+        const cust = state.customers.find(c => c.bank_id === entityId);
+        if (cust) {
+          cust.bankStatus = newStatus;
+          matchedEntity = `Customer ${cust.businessName}`;
         }
       }
 
-      const hookEntry = {
+      const whRecord = {
         id: 'wh_' + crypto.randomBytes(5).toString('hex'),
         ts: new Date().toISOString(),
-        type: evtType,
-        status: evtStatus,
-        resourceId: evtId || 'sim_id',
-        sigNote: sigCheck.note,
-        matchedEntity: matchedEntity || 'Logged event'
+        type: eventType,
+        entityId,
+        status: newStatus,
+        matchedEntity: matchedEntity || entityId,
+        hmacMode: sigCheck.mode
       };
-      state.webhooks.unshift(hookEntry);
-      state.webhooks = state.webhooks.slice(0, 50);
+      state.webhooks.unshift(whRecord);
+      state.webhooks = state.webhooks.slice(0, 40);
 
       saveState(state);
-      return jsonResponse(200, { ok: true, webhook: hookEntry });
+      return json(200, { received: true, webhook: whRecord });
     }
 
-    return jsonResponse(404, { error: `Unknown API route: ${method} ${rawPath}` });
+    return json(404, { error: `Unknown endpoint: ${method} ${route}` });
   } catch (err) {
-    console.error('API Error:', err);
-    saveState(state);
-    return jsonResponse(500, { error: err.message || 'Internal server error' });
+    return json(500, { error: err.message || 'Internal server error' });
   }
 };

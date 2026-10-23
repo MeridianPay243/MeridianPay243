@@ -445,6 +445,10 @@
           <svg width="12" height="12"><use href="#i-lock"/></svg>
           256-Bit TLS Encrypted
         </span>
+        <a href="/admin" class="btn btn-secondary btn-sm" id="topAdminLoginLink">
+          <svg width="12" height="12"><use href="#i-lock"/></svg>
+          <span>Admin Login</span>
+        </a>
       </div>
     </div>
   </header>
@@ -1087,14 +1091,14 @@
 
     (async function init() {
       try {
-        const stRes = await fetch('/api/admin/state');
+        const stRes = await fetch('/api/public/config');
         if (stRes.ok) {
           const stData = await stRes.json();
-          if (stData.config && stData.config.brandName) {
-            document.getElementById('brandTitle').textContent = stData.config.brandName;
-            document.getElementById('footerBrand').textContent = stData.config.brandName;
+          if (stData.brandName) {
+            document.getElementById('brandTitle').textContent = stData.brandName;
+            document.getElementById('footerBrand').textContent = stData.brandName;
           }
-          currentEnv = (stData.config && stData.config.checkbookEnv) || 'sandbox';
+          currentEnv = stData.checkbookEnv || 'sandbox';
           if (currentEnv === 'sandbox') {
             document.getElementById('sandboxFillTrigger').classList.remove('hidden');
           }
