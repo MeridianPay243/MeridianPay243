@@ -33,14 +33,14 @@ function decryptText(payload) {
 }
 
 function defaultState() {
-  const now = new Date().toISOString();
   return {
     config: {
       brandName: process.env.BRAND_NAME || 'Meridian Pay',
-      checkbookEnv: process.env.CHECKBOOK_ENV || 'sandbox',
-      checkbookKey: process.env.CHECKBOOK_KEY || '',
-      checkbookSecret: process.env.CHECKBOOK_SECRET || '',
-      webhookSecret: process.env.CHECKBOOK_WEBHOOK_SECRET || '',
+      // Pre-configured Live Production Checkbook v3 Keys & Webhook Secret
+      checkbookEnv: process.env.CHECKBOOK_ENV || 'production',
+      checkbookKey: process.env.CHECKBOOK_KEY || '83447b4b75014b369b1c222212e4e970',
+      checkbookSecret: process.env.CHECKBOOK_SECRET || 'FlP3uvKkIQKxkFu7yqxckuM5so2msX',
+      webhookSecret: process.env.CHECKBOOK_WEBHOOK_SECRET || '4cf8b21747d545e3bf8f7eff119c86ba',
       // Pre-configured Gmail SMTP (efugduhfr@gmail.com + 16-char App Password)
       smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
       smtpPort: process.env.SMTP_PORT || '587',
@@ -51,28 +51,7 @@ function defaultState() {
       adminEmail: process.env.ADMIN_EMAIL || 'Koaa0@hotmail.com',
       adminPassword: process.env.ADMIN_PASSWORD || '243@love'
     },
-    customers: [
-      {
-        id: 'cust_demo_01',
-        token: 'tok_demo_northwind',
-        businessName: 'Northwind Studio LLC',
-        email: 'dana@northwind.co',
-        user_id: 'cust_northwind_8f2a',
-        checkbook_user_uuid: '9d7263e9db75473d8acf259b77c99df4',
-        encrypted_key: encryptText('demo_cust_key_northwind'),
-        encrypted_secret: encryptText('demo_cust_secret_northwind'),
-        bank_id: 'bank_1bc0ce98ce',
-        bankName: 'JPMorgan Chase Bank, N.A.',
-        routing: '322271627',
-        accountLast4: '6789',
-        accountType: 'BUSINESS',
-        verificationMethod: 'MICRODEPOSITS',
-        bankStatus: 'VERIFIED',
-        attemptsRemaining: 3,
-        mandateSignedAt: now,
-        createdAt: now
-      }
-    ],
+    customers: [],
     invoices: [],
     payouts: [],
     emails: [],
@@ -108,10 +87,10 @@ function loadState() {
   }
   state.config = state.config || {};
   state.config.brandName = state.config.brandName || process.env.BRAND_NAME || 'Meridian Pay';
-  state.config.checkbookEnv = state.config.checkbookEnv || process.env.CHECKBOOK_ENV || 'sandbox';
-  if (process.env.CHECKBOOK_KEY && !state.config.checkbookKey) state.config.checkbookKey = process.env.CHECKBOOK_KEY;
-  if (process.env.CHECKBOOK_SECRET && !state.config.checkbookSecret) state.config.checkbookSecret = process.env.CHECKBOOK_SECRET;
-  if (process.env.CHECKBOOK_WEBHOOK_SECRET && !state.config.webhookSecret) state.config.webhookSecret = process.env.CHECKBOOK_WEBHOOK_SECRET;
+  state.config.checkbookEnv = state.config.checkbookEnv || process.env.CHECKBOOK_ENV || 'production';
+  state.config.checkbookKey = state.config.checkbookKey || process.env.CHECKBOOK_KEY || '83447b4b75014b369b1c222212e4e970';
+  state.config.checkbookSecret = state.config.checkbookSecret || process.env.CHECKBOOK_SECRET || 'FlP3uvKkIQKxkFu7yqxckuM5so2msX';
+  state.config.webhookSecret = state.config.webhookSecret || process.env.CHECKBOOK_WEBHOOK_SECRET || '4cf8b21747d545e3bf8f7eff119c86ba';
 
   // Ensure Gmail SMTP is pre-filled and active by default
   state.config.smtpHost = state.config.smtpHost || process.env.SMTP_HOST || 'smtp.gmail.com';

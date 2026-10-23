@@ -99,9 +99,13 @@ async function verifyCheckbookConnection(state) {
     if (probe.ok) {
       result.apiConnected = true;
       result.detectedEnv = primaryEnv;
-      const banks = (probe.data && probe.data.accounts) || [];
+      const banks = (probe.data && (probe.data.banks || probe.data.accounts)) || [];
       result.ownerAccountsCount = Array.isArray(banks) ? banks.length : 0;
-      result.apiStatusMessage = `Connected to Checkbook ${primaryEnv.toUpperCase()} API (HTTP ${probe.status} OK · ${result.ownerAccountsCount} owner bank account(s) on file).`;
+      const firstBank = result.ownerAccountsCount > 0 ? banks[0] : null;
+      const bankNote = firstBank
+        ? `Owner Bank •••• ${firstBank.account} (${firstBank.status})`
+        : `${result.ownerAccountsCount} owner bank(s)`;
+      result.apiStatusMessage = `Connected to Checkbook ${primaryEnv.toUpperCase()} API (HTTP ${probe.status} OK · ${bankNote}).`;
     } else if (probe.status === 401) {
       // Auto-check the other environment in case the user pasted a Sandbox key while Production was selected (or vice versa)
       const altProbe = await checkbookRequest(state, {
@@ -115,9 +119,13 @@ async function verifyCheckbookConnection(state) {
         cfg.checkbookEnv = fallbackEnv;
         result.apiConnected = true;
         result.detectedEnv = fallbackEnv;
-        const banks = (altProbe.data && altProbe.data.accounts) || [];
+        const banks = (altProbe.data && (altProbe.data.banks || altProbe.data.accounts)) || [];
         result.ownerAccountsCount = Array.isArray(banks) ? banks.length : 0;
-        result.apiStatusMessage = `Connected! Auto-detected ${fallbackEnv.toUpperCase()} key and switched environment to ${fallbackEnv.toUpperCase()} (${result.ownerAccountsCount} owner bank(s) on file).`;
+        const firstBank = result.ownerAccountsCount > 0 ? banks[0] : null;
+        const bankNote = firstBank
+          ? `Owner Bank •••• ${firstBank.account} (${firstBank.status})`
+          : `${result.ownerAccountsCount} owner bank(s)`;
+        result.apiStatusMessage = `Connected! Auto-detected ${fallbackEnv.toUpperCase()} key and switched environment to ${fallbackEnv.toUpperCase()} (${bankNote}).`;
       } else {
         result.apiConnected = false;
         result.apiStatusMessage = `Checkbook returned 401 Unauthorized on both Production and Sandbox. Please double-check your Publishable Key and Secret Key.`;
@@ -213,15 +221,19 @@ const DEFAULT_INSTITUTIONS = [
 
 async function listInstitutionsForCustomer(state, custKey, custSecret) {
   const isSimCustomer = !custKey || custKey.startsWith('sim_') || custKey.startsWith('demo_');
-  if (hasLiveOwnerKeys(state.config) && !isSimCustomer) {
+  if (hasLiveOwnerKeys(state.config)) {
+    const auth = !isSimCustomer
+      ? `${custKey}:${custSecret}`
+      : `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
+    const authLabel = !isSimCustomer ? 'guest key' : 'owner key';
     const res = await checkbookRequest(state, {
       method: 'GET',
       path: '/account/bank/institutions',
-      auth: `${custKey}:${custSecret}`,
-      authLabel: 'guest key'
+      auth,
+      authLabel
     });
     if (res.ok && Array.isArray(res.data.institutions) && res.data.institutions.length > 0) {
-      return { institutions: res.data.institutions.slice(0, 60) };
+      return { institutions: res.data.institutions };
     }
   }
   return { institutions: DEFAULT_INSTITUTIONS };

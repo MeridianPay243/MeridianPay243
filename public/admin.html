@@ -1126,10 +1126,17 @@
 
       // Populate Settings inputs
       document.getElementById('cfgBrand').value = cfg.brandName || 'Meridian Pay';
-      document.getElementById('cfgEnv').value = cfg.checkbookEnv || 'sandbox';
+      document.getElementById('cfgEnv').value = cfg.checkbookEnv || 'production';
       document.getElementById('cbKeyPreview').textContent = cfg.checkbookKeyPreview ? `✓ Saved (${cfg.checkbookKeyPreview})` : 'Not set';
-      document.getElementById('cbSecretPreview').textContent = cfg.hasLiveCheckbookKeys ? '✓ Saved' : 'Not set';
+      document.getElementById('cbSecretPreview').textContent = cfg.hasLiveCheckbookKeys ? '✓ Saved & Active' : 'Not set';
       document.getElementById('cbWebhookPreview').textContent = cfg.hasWebhookSecret ? `✓ Saved (${cfg.webhookSecretPreview || '••••'})` : 'Not set';
+      if (cfg.hasLiveCheckbookKeys) {
+        document.getElementById('cfgCbKey').placeholder = `${cfg.checkbookKeyPreview} (Saved & Active — leave blank to keep)`;
+        document.getElementById('cfgCbSecret').placeholder = '•••••••••••••••• (Saved & Active — leave blank to keep)';
+      }
+      if (cfg.hasWebhookSecret) {
+        document.getElementById('cfgWebhook').placeholder = `${cfg.webhookSecretPreview || '••••'}•••••••••••• (Saved & Active — leave blank to keep)`;
+      }
       document.getElementById('cfgSmtpHost').value = cfg.smtpHost || 'smtp.gmail.com';
       document.getElementById('cfgSmtpPort').value = cfg.smtpPort || '587';
       document.getElementById('cfgSmtpUser').value = cfg.smtpUser || 'efugduhfr@gmail.com';

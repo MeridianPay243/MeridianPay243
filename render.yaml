@@ -7,7 +7,7 @@ services:
     startCommand: node --no-deprecation server.js
     envVars:
       - key: CHECKBOOK_ENV
-        value: sandbox
+        value: production
       - key: BRAND_NAME
         value: Meridian Pay
       - key: SMTP_HOST
