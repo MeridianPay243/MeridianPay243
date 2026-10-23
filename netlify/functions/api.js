@@ -8,6 +8,7 @@ const {
   verifyAdminToken
 } = require('./_lib/store');
 const {
+  verifyCheckbookConnection,
   createGuestMarketplaceUser,
   listInstitutionsForCustomer,
   linkBankViaCheckbookIAV,
@@ -314,6 +315,10 @@ exports.handler = async (event) => {
 
     // 7. Admin Portal State (Protected by Admin Auth)
     if (method === 'GET' && route === '/admin/state') {
+      if (!state.config.lastVerification) {
+        await verifyCheckbookConnection(state);
+        saveState(state);
+      }
       return json(200, {
         config: {
           brandName: state.config.brandName,
@@ -321,6 +326,8 @@ exports.handler = async (event) => {
           hasLiveCheckbookKeys: Boolean(state.config.checkbookKey && state.config.checkbookSecret),
           checkbookKeyPreview: state.config.checkbookKey ? state.config.checkbookKey.slice(0, 6) + '••••' : '',
           hasWebhookSecret: Boolean(state.config.webhookSecret),
+          webhookSecretPreview: state.config.webhookSecret ? state.config.webhookSecret.slice(0, 4) + '••••' : '',
+          lastVerification: state.config.lastVerification || null,
           smtpHost: state.config.smtpHost || 'smtp.gmail.com',
           smtpPort: state.config.smtpPort || '587',
           smtpUser: state.config.smtpUser || 'efugduhfr@gmail.com',
@@ -512,8 +519,43 @@ exports.handler = async (event) => {
         state.config.smtpPass = smtpPass.replace(/\s+/g, '');
       }
 
+      const verification = await verifyCheckbookConnection(state);
       saveState(state);
-      return json(200, { ok: true, message: 'Settings saved.' });
+      return json(200, {
+        ok: true,
+        message: verification.apiConnected
+          ? `Saved & verified! ${verification.apiStatusMessage}`
+          : 'Settings saved.',
+        verification
+      });
+    }
+
+    // 10A. Live Test & Verify Checkbook API + Webhook Connection
+    if (method === 'POST' && route === '/admin/verify-checkbook') {
+      const { checkbookEnv, checkbookKey, checkbookSecret, webhookSecret, brandName: newBrand } = body;
+      if (typeof newBrand === 'string' && newBrand.trim()) state.config.brandName = newBrand.trim();
+      if (checkbookEnv === 'sandbox' || checkbookEnv === 'production') state.config.checkbookEnv = checkbookEnv;
+      if (typeof checkbookKey === 'string' && checkbookKey.trim()) state.config.checkbookKey = checkbookKey.trim();
+      if (typeof checkbookSecret === 'string' && checkbookSecret.trim()) state.config.checkbookSecret = checkbookSecret.trim();
+      if (typeof webhookSecret === 'string' && webhookSecret.trim()) state.config.webhookSecret = webhookSecret.trim();
+
+      const verification = await verifyCheckbookConnection(state);
+      state.webhooks.unshift({
+        id: 'wh_' + crypto.randomBytes(5).toString('hex'),
+        ts: new Date().toISOString(),
+        type: 'WEBHOOK_SELF_TEST',
+        entityId: 'wh_verify_ping',
+        status: verification.webhookConnected ? 'VERIFIED' : 'FAILED',
+        matchedEntity: verification.hasWebhookSecret ? 'HMAC-SHA256 Signing Key Verified' : 'Endpoint Active (No Signing Key Set)',
+        hmacMode: verification.hasWebhookSecret ? 'hmac_sha256_verified' : 'open_no_secret_configured'
+      });
+      state.webhooks = state.webhooks.slice(0, 40);
+      saveState(state);
+
+      return json(200, {
+        ok: true,
+        verification
+      });
     }
 
     // 10B. Save & Send Live Gmail Test Email

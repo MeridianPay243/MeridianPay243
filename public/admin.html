@@ -626,11 +626,29 @@
                 <svg width="18" height="18" style="color:var(--brand)"><use href="#i-shield"/></svg>
                 <h3>Checkbook.io API Key, Secret &amp; Webhook</h3>
               </div>
-              <span class="pill pill-grey" id="cbStatusPill">Sandbox Mode</span>
+              <span class="pill pill-grey" id="cbStatusPill">Checking…</span>
             </div>
-            <p class="micro" style="margin-bottom:16px">
-              Your Gmail SMTP &amp; Admin Login are already pre-configured. Paste your Checkbook Publishable Key, Secret Key, and Webhook Signing Key below when switching to live production.
+            <p class="micro" style="margin-bottom:14px">
+              Your Gmail SMTP &amp; Admin Login are already pre-configured. Paste your Checkbook Publishable Key, Secret Key, and Webhook Signing Key below and click <b>Save &amp; Verify</b> to test the live connection.
             </p>
+
+            <!-- LIVE API & WEBHOOK CONNECTION INDICATOR BOX -->
+            <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:16px">
+              <div class="row between" style="margin-bottom:6px">
+                <span style="font-size:12px;font-weight:650;color:var(--ink-2)">1. Checkbook v3 API Connection</span>
+                <span class="pill pill-grey" id="cbApiConnBadge">Checking…</span>
+              </div>
+              <div class="micro" id="cbApiDiagnosticText" style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line-2)">
+                Verifying API key &amp; secret…
+              </div>
+              <div class="row between" style="margin-bottom:4px">
+                <span style="font-size:12px;font-weight:650;color:var(--ink-2)">2. Webhook Endpoint &amp; Signing Key</span>
+                <span class="pill pill-grey" id="cbWebhookConnBadge">Checking…</span>
+              </div>
+              <div class="micro" id="cbWebhookDiagnosticText">
+                Verifying /webhook/checkbook HMAC-SHA256 pipeline…
+              </div>
+            </div>
 
             <form id="cbConfigForm">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -642,7 +660,7 @@
                   <label class="label" for="cfgEnv">Checkbook Environment</label>
                   <select id="cfgEnv">
                     <option value="sandbox">Sandbox (sandbox.checkbook.io)</option>
-                    <option value="production">Production (checkbook.io)</option>
+                    <option value="production">Production (api.checkbook.io)</option>
                   </select>
                 </div>
               </div>
@@ -656,12 +674,18 @@
               </div>
 
               <div class="field">
-                <label class="label" for="cfgCbSecret">Checkbook Secret Key (<span class="mono">CHECKBOOK_SECRET</span>)</label>
+                <label class="label" for="cfgCbSecret">
+                  <span>Checkbook Secret Key (<span class="mono">CHECKBOOK_SECRET</span>)</span>
+                  <span class="mono" id="cbSecretPreview" style="color:var(--brand-700)"></span>
+                </label>
                 <input type="password" id="cfgCbSecret" placeholder="Paste your Checkbook Secret Key" />
               </div>
 
               <div class="field">
-                <label class="label" for="cfgWebhook">Webhook Signing Key (<span class="mono">CHECKBOOK_WEBHOOK_SECRET</span>)</label>
+                <label class="label" for="cfgWebhook">
+                  <span>Webhook Signing Key (<span class="mono">CHECKBOOK_WEBHOOK_SECRET</span>)</span>
+                  <span class="mono" id="cbWebhookPreview" style="color:var(--brand-700)"></span>
+                </label>
                 <input type="password" id="cfgWebhook" placeholder="Paste your Checkbook Webhook Signing Key" />
               </div>
 
@@ -676,7 +700,15 @@
                 <code class="mono" id="webhookUrlBox" style="color:var(--blue);display:block;margin-top:4px;word-break:break-all"></code>
               </div>
 
-              <button type="submit" class="btn btn-brand btn-block">Save Checkbook API Settings</button>
+              <div class="row gap10">
+                <button type="submit" class="btn btn-brand" style="flex:1" id="saveVerifyCbBtn">
+                  <svg width="14" height="14"><use href="#i-check"/></svg>
+                  <span>Save &amp; Verify API + Webhook</span>
+                </button>
+                <button type="button" class="btn btn-secondary" id="retestCbBtn" onclick="testCheckbookConnectionNow()">
+                  <span>Test Connection Now</span>
+                </button>
+              </div>
             </form>
           </div>
 
@@ -920,17 +952,64 @@
 
       const smtpConnected = Boolean(cfg.hasSmtpPass && cfg.smtpUser);
       const cbConnected = Boolean(cfg.hasLiveCheckbookKeys);
+      const ver = cfg.lastVerification || {};
 
-      document.getElementById('kpiSmtpBadge').className = 'pill ' + (smtpConnected ? 'pill-green' : 'pill-amber');
-      document.getElementById('kpiSmtpBadge').textContent = smtpConnected ? 'Gmail Active' : 'Setup Needed';
-      document.getElementById('kpiIntegrationHeadline').textContent = `${cbConnected ? 'Live Checkbook' : 'Checkbook Sandbox'} · Gmail Connected`;
-      document.getElementById('kpiIntegrationSub').textContent = `Sending as "${cfg.brandName}" <${cfg.smtpUser}>`;
+      // Top KPI Integrations Card
+      if (cbConnected && ver.apiConnected) {
+        document.getElementById('kpiSmtpBadge').className = 'pill pill-green';
+        document.getElementById('kpiSmtpBadge').innerHTML = `<svg width="11" height="11"><use href="#i-check"/></svg>API &amp; Gmail Live`;
+        document.getElementById('kpiIntegrationHeadline').textContent = `Checkbook (${cfg.checkbookEnv.toUpperCase()}) Connected`;
+        document.getElementById('kpiIntegrationSub').textContent = `${cfg.hasWebhookSecret ? '✓ Webhook HMAC Active' : 'Webhook Open'} · Gmail Active`;
+      } else if (cbConnected && ver.apiConnected === false) {
+        document.getElementById('kpiSmtpBadge').className = 'pill pill-amber';
+        document.getElementById('kpiSmtpBadge').textContent = 'Check API Key';
+        document.getElementById('kpiIntegrationHeadline').textContent = `Checkbook Key Needs Attention`;
+        document.getElementById('kpiIntegrationSub').textContent = ver.apiStatusMessage || 'Click to inspect in API Keys & Settings';
+      } else {
+        document.getElementById('kpiSmtpBadge').className = 'pill pill-blue';
+        document.getElementById('kpiSmtpBadge').textContent = 'Simulator + Gmail';
+        document.getElementById('kpiIntegrationHeadline').textContent = `Sandbox Simulator · Gmail Active`;
+        document.getElementById('kpiIntegrationSub').textContent = `Click to paste your Checkbook API Key & Secret`;
+      }
 
       document.getElementById('gmailStatusPill').className = 'pill ' + (smtpConnected ? 'pill-green' : 'pill-amber');
       document.getElementById('gmailStatusPill').textContent = smtpConnected ? `Connected (${cfg.smtpUser})` : 'Enter Gmail App Password';
 
-      document.getElementById('cbStatusPill').className = 'pill ' + (cbConnected ? 'pill-green' : 'pill-blue');
-      document.getElementById('cbStatusPill').textContent = cbConnected ? `Live Keys (${cfg.checkbookEnv})` : `Sandbox Simulator (${cfg.checkbookEnv})`;
+      // Detailed Checkbook API & Webhook Status Indicators in Tab 4
+      const apiBadge = document.getElementById('cbApiConnBadge');
+      const apiText = document.getElementById('cbApiDiagnosticText');
+      const whBadge = document.getElementById('cbWebhookConnBadge');
+      const whText = document.getElementById('cbWebhookDiagnosticText');
+
+      if (!cbConnected) {
+        document.getElementById('cbStatusPill').className = 'pill pill-blue';
+        document.getElementById('cbStatusPill').textContent = `Sandbox Simulator (${cfg.checkbookEnv})`;
+        apiBadge.className = 'pill pill-amber';
+        apiBadge.textContent = 'Not Entered Yet (Simulator)';
+        apiText.textContent = 'No Checkbook API Key & Secret saved yet. Paste your keys below and click "Save & Verify API + Webhook".';
+      } else if (ver.apiConnected) {
+        document.getElementById('cbStatusPill').className = 'pill pill-green';
+        document.getElementById('cbStatusPill').innerHTML = `<svg width="11" height="11"><use href="#i-check"/></svg>Connected (${cfg.checkbookEnv})`;
+        apiBadge.className = 'pill pill-green';
+        apiBadge.innerHTML = `<svg width="11" height="11"><use href="#i-check"/></svg>Connected (${cfg.checkbookEnv.toUpperCase()})`;
+        apiText.textContent = ver.apiStatusMessage || 'Authenticated with Checkbook v3 API.';
+      } else {
+        document.getElementById('cbStatusPill').className = 'pill pill-amber';
+        document.getElementById('cbStatusPill').textContent = `Auth Error (${cfg.checkbookEnv})`;
+        apiBadge.className = 'pill pill-amber';
+        apiBadge.textContent = 'Unauthorized / Check Keys';
+        apiText.textContent = ver.apiStatusMessage || 'Checkbook rejected the key/secret. Verify your Publishable Key & Secret Key.';
+      }
+
+      if (cfg.hasWebhookSecret) {
+        whBadge.className = 'pill pill-green';
+        whBadge.innerHTML = `<svg width="11" height="11"><use href="#i-check"/></svg>HMAC Signing Key Active`;
+        whText.textContent = ver.webhookStatusMessage || 'Webhook Signing Key saved & HMAC-SHA256 verification active on /webhook/checkbook.';
+      } else {
+        whBadge.className = 'pill pill-blue';
+        whBadge.textContent = 'Endpoint Live (No Signing Key)';
+        whText.textContent = 'Endpoint /webhook/checkbook is live. Paste your Checkbook Webhook Signing Key below to enable HMAC-SHA256 verification.';
+      }
 
       // Customers Table
       const cBody = document.getElementById('customersTableBody');
@@ -1048,7 +1127,9 @@
       // Populate Settings inputs
       document.getElementById('cfgBrand').value = cfg.brandName || 'Meridian Pay';
       document.getElementById('cfgEnv').value = cfg.checkbookEnv || 'sandbox';
-      document.getElementById('cbKeyPreview').textContent = cfg.checkbookKeyPreview ? `Saved: ${cfg.checkbookKeyPreview}` : '';
+      document.getElementById('cbKeyPreview').textContent = cfg.checkbookKeyPreview ? `✓ Saved (${cfg.checkbookKeyPreview})` : 'Not set';
+      document.getElementById('cbSecretPreview').textContent = cfg.hasLiveCheckbookKeys ? '✓ Saved' : 'Not set';
+      document.getElementById('cbWebhookPreview').textContent = cfg.hasWebhookSecret ? `✓ Saved (${cfg.webhookSecretPreview || '••••'})` : 'Not set';
       document.getElementById('cfgSmtpHost').value = cfg.smtpHost || 'smtp.gmail.com';
       document.getElementById('cfgSmtpPort').value = cfg.smtpPort || '587';
       document.getElementById('cfgSmtpUser').value = cfg.smtpUser || 'efugduhfr@gmail.com';
@@ -1199,27 +1280,70 @@
       }
     }
 
-    document.getElementById('cbConfigForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const payload = {
-        brandName: document.getElementById('cfgBrand').value.trim() || 'Meridian Pay',
-        checkbookEnv: document.getElementById('cfgEnv').value
-      };
-      if (document.getElementById('cfgCbKey').value.trim()) payload.checkbookKey = document.getElementById('cfgCbKey').value.trim();
-      if (document.getElementById('cfgCbSecret').value.trim()) payload.checkbookSecret = document.getElementById('cfgCbSecret').value.trim();
-      if (document.getElementById('cfgWebhook').value.trim()) payload.webhookSecret = document.getElementById('cfgWebhook').value.trim();
+    async function testCheckbookConnectionNow() {
+      const btn = document.getElementById('retestCbBtn');
+      btn.disabled = true;
+      btn.textContent = 'Testing…';
+      try {
+        const payload = {
+          brandName: document.getElementById('cfgBrand').value.trim() || 'Meridian Pay',
+          checkbookEnv: document.getElementById('cfgEnv').value
+        };
+        if (document.getElementById('cfgCbKey').value.trim()) payload.checkbookKey = document.getElementById('cfgCbKey').value.trim();
+        if (document.getElementById('cfgCbSecret').value.trim()) payload.checkbookSecret = document.getElementById('cfgCbSecret').value.trim();
+        if (document.getElementById('cfgWebhook').value.trim()) payload.webhookSecret = document.getElementById('cfgWebhook').value.trim();
 
-      const res = await adminFetch('/api/admin/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
+        const res = await adminFetch('/api/admin/verify-checkbook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
         document.getElementById('cfgCbKey').value = '';
         document.getElementById('cfgCbSecret').value = '';
         document.getElementById('cfgWebhook').value = '';
         await loadAdminState();
-        showToast('Checkbook API settings saved.');
+        const v = data.verification || {};
+        showToast(v.apiStatusMessage || 'Connection test completed.', v.apiConnected ? 'ok' : (v.hasApiKeys ? 'err' : 'ok'));
+      } catch (err) {
+        showToast(err.message, 'err');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Test Connection Now';
+      }
+    }
+
+    document.getElementById('cbConfigForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('saveVerifyCbBtn');
+      btn.disabled = true;
+      btn.innerHTML = `<span>Saving &amp; verifying with Checkbook…</span>`;
+      try {
+        const payload = {
+          brandName: document.getElementById('cfgBrand').value.trim() || 'Meridian Pay',
+          checkbookEnv: document.getElementById('cfgEnv').value
+        };
+        if (document.getElementById('cfgCbKey').value.trim()) payload.checkbookKey = document.getElementById('cfgCbKey').value.trim();
+        if (document.getElementById('cfgCbSecret').value.trim()) payload.checkbookSecret = document.getElementById('cfgCbSecret').value.trim();
+        if (document.getElementById('cfgWebhook').value.trim()) payload.webhookSecret = document.getElementById('cfgWebhook').value.trim();
+
+        const res = await adminFetch('/api/admin/verify-checkbook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        document.getElementById('cfgCbKey').value = '';
+        document.getElementById('cfgCbSecret').value = '';
+        document.getElementById('cfgWebhook').value = '';
+        await loadAdminState();
+        const v = data.verification || {};
+        showToast(v.apiStatusMessage || 'Checkbook settings saved.', v.apiConnected ? 'ok' : (v.hasApiKeys ? 'err' : 'ok'));
+      } catch (err) {
+        showToast(err.message, 'err');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="14" height="14"><use href="#i-check"/></svg><span>Save &amp; Verify API + Webhook</span>`;
       }
     });
 
