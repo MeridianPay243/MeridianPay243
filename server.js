@@ -1,7 +1,6 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const url = require('url');
 const { handler } = require('./netlify/functions/api');
 
 const PORT = process.env.PORT || 3000;
@@ -17,10 +16,11 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  const parsed = url.parse(req.url, true);
-  const pathname = parsed.pathname || '/';
+  const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  const pathname = parsedUrl.pathname || '/';
+  const query = Object.fromEntries(parsedUrl.searchParams.entries());
 
-  // Route API & Webhook requests to the Netlify Function handler
+  // Route API & Webhook requests to the serverless handler
   if (pathname.startsWith('/api/') || pathname.startsWith('/.netlify/functions/api') || pathname === '/webhook/checkbook') {
     let bodyChunks = [];
     req.on('data', chunk => bodyChunks.push(chunk));
@@ -29,7 +29,7 @@ const server = http.createServer((req, res) => {
       const event = {
         httpMethod: req.method,
         path: pathname === '/webhook/checkbook' ? '/api/webhook/checkbook' : pathname,
-        queryStringParameters: parsed.query || {},
+        queryStringParameters: query,
         headers: req.headers || {},
         body: rawBody
       };
@@ -45,7 +45,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Static page routing matching netlify.toml redirects
+  // Static page routing
   let filePath = pathname;
   if (pathname === '/' || pathname === '/verify') filePath = '/index.html';
   else if (pathname === '/admin') filePath = '/admin.html';
@@ -62,5 +62,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Netlify app live at http://0.0.0.0:${PORT}`);
+  console.log(`Meridian Pay app live at http://0.0.0.0:${PORT}`);
 });
