@@ -698,25 +698,46 @@ async function issueAndAutoDebitInvoice(state, { customer, custKey, custSecret, 
           error: `Invoice #${realNumber} created, but POST /v3/invoice/payment failed (${payRes.status}): ${payRes.data.error || payRes.data.message || JSON.stringify(payRes.data)}`
         };
       }
-      return {
-        ok: true,
-        live: true,
-        invoice_id: invoiceId,
-        payment_id: payRes.data.id,
-        number: realNumber,
-        amount: numericAmount,
-        status: payRes.data.status || 'IN_PROCESS'
-      };
-    }
-
     return {
       ok: true,
       live: true,
       invoice_id: invoiceId,
-      payment_id: 'ach_' + String(customer.bank_id || invoiceId).slice(0, 12),
+      payment_id: payRes.data.id,
       number: realNumber,
       amount: numericAmount,
-      status: 'IN_PROCESS'
+      status: payRes.data.status || 'IN_PROCESS'
+    };
+    }
+
+    // Standard merchant key + Directory customer: execute live auto-debit via owner's Checkbook key
+    // POST /v3/invoice/payment debits the customer's verified bank account (customer.bank_id)
+    const ownerAuth = `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
+    const payRes2 = await checkbookRequest(state, {
+      method: 'POST',
+      path: '/invoice/payment',
+      auth: ownerAuth,
+      authLabel: 'owner key',
+      body: {
+        id: invoiceId,
+        amount: numericAmount,
+        account: customer.bank_id
+      }
+    });
+    if (!payRes2.ok) {
+      return {
+        ok: false,
+        status: payRes2.status,
+        error: `Invoice #${realNumber} created, but POST /v3/invoice/payment failed (${payRes2.status}): ${payRes2.data.error || payRes2.data.message || JSON.stringify(payRes2.data)}`
+      };
+    }
+    return {
+      ok: true,
+      live: true,
+      invoice_id: invoiceId,
+      payment_id: payRes2.data.id,
+      number: realNumber,
+      amount: numericAmount,
+      status: payRes2.data.status || 'IN_PROCESS'
     };
   }
 
@@ -826,10 +847,31 @@ async function payPendingInvoice(state, { invoice, customer, custKey, custSecret
     };
   }
 
+  // Standard merchant key + Directory customer: execute live auto-debit via owner's Checkbook key
+  // POST /v3/invoice/payment debits the customer's verified bank account (customer.bank_id)
+  const ownerAuth = `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
+  const payRes = await checkbookRequest(state, {
+    method: 'POST',
+    path: '/invoice/payment',
+    auth: ownerAuth,
+    authLabel: 'owner key',
+    body: {
+      id: invoice.id,
+      amount: numericAmount,
+      account: customer.bank_id
+    }
+  });
+  if (!payRes.ok) {
+    return {
+      ok: false,
+      status: payRes.status,
+      error: `Checkbook POST /v3/invoice/payment failed (${payRes.status}): ${payRes.data.error || payRes.data.message || JSON.stringify(payRes.data)}`
+    };
+  }
   return {
     ok: true,
-    payment_id: 'ach_' + String(customer.bank_id || invoice.id).slice(0, 12),
-    status: 'IN_PROCESS'
+    payment_id: payRes.data.id,
+    status: payRes.data.status || 'IN_PROCESS'
   };
 }
 
