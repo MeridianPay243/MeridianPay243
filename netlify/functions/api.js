@@ -16,6 +16,8 @@ const {
   linkBankViaMicrodeposits,
   verifyMicrodeposits,
   issueAndAutoDebitInvoice,
+  createPendingInvoice,
+  payPendingInvoice,
   sendOutboundDigitalCheck,
   verifyWebhookSignature
 } = require('./_lib/checkbook');
@@ -53,10 +55,28 @@ function getRoute(event) {
 function sanitizeCustomer(c) {
   if (!c) return null;
   const { encrypted_key, encrypted_secret, ...rest } = c;
+  const normalizedStatus = rest.bankStatus === 'UNLINKED' ? 'UNVERIFIED' : (rest.bankStatus || 'UNVERIFIED');
   return {
     ...rest,
+    bankStatus: normalizedStatus,
+    checkbookFlag: rest.checkbookFlag || normalizedStatus,
     hasStoredKeys: Boolean(encrypted_key && encrypted_secret)
   };
+}
+
+function syncCustomerInvoicesBank(state, customer) {
+  if (!customer || !Array.isArray(state.invoices)) return;
+  const custEmail = String(customer.email || '').trim().toLowerCase();
+  for (const inv of state.invoices) {
+    const invEmail = String(inv.email || '').trim().toLowerCase();
+    if (inv.customerId === customer.id || (custEmail && invEmail === custEmail)) {
+      inv.customerId = customer.id;
+      inv.businessName = customer.businessName || inv.businessName;
+      if (customer.accountLast4) {
+        inv.accountLast4 = customer.accountLast4;
+      }
+    }
+  }
 }
 
 function extractAdminToken(event) {
@@ -210,7 +230,7 @@ exports.handler = async (event) => {
       }
     }
 
-    // 1. Guest Step 1: Business Name + Email ONLY -> POST /v3/user
+    // 1. Guest Step 1: Business Name + Email ONLY -> Matches Checkbook Directory Profile 1:1
     if (method === 'POST' && route === '/guest/start') {
       const businessName = (body.businessName || '').trim();
       const email = (body.email || '').trim().toLowerCase();
@@ -222,9 +242,13 @@ exports.handler = async (event) => {
         await syncWithCheckbookDashboard(state);
       }
 
-      let existing = state.customers.find(c => c.email.toLowerCase() === email);
+      let existing = state.customers.find(
+        c => c.email.toLowerCase() === email || c.businessName.toLowerCase() === businessName.toLowerCase()
+      );
       if (existing) {
-        existing.businessName = businessName;
+        existing.businessName = existing.businessName || businessName;
+        if (existing.bankStatus === 'UNLINKED') existing.bankStatus = 'UNVERIFIED';
+        existing.checkbookFlag = existing.bankStatus;
         saveState(state);
         return json(200, { customer: sanitizeCustomer(existing), reused: true });
       }
@@ -238,7 +262,9 @@ exports.handler = async (event) => {
         token: 'tok_' + crypto.randomBytes(8).toString('hex'),
         businessName,
         email,
-        user_id: cbUser.user_id || user_id,
+        user_id: cbUser.id || cbUser.user_id || user_id,
+        checkbook_directory_id: cbUser.id || null,
+        checkbookFlag: 'UNVERIFIED',
         checkbook_user_uuid: cbUser.id,
         encrypted_key: encryptText(cbUser.key),
         encrypted_secret: encryptText(cbUser.secret),
@@ -248,13 +274,14 @@ exports.handler = async (event) => {
         accountLast4: null,
         accountType: 'BUSINESS',
         verificationMethod: null,
-        bankStatus: 'UNLINKED',
+        bankStatus: 'UNVERIFIED',
         attemptsRemaining: 3,
         mandateSignedAt: new Date().toISOString(),
         createdAt: new Date().toISOString()
       };
 
       state.customers.unshift(customer);
+      syncCustomerInvoicesBank(state, customer);
       saveState(state);
       return json(200, { customer: sanitizeCustomer(customer), reused: false });
     }
@@ -298,7 +325,8 @@ exports.handler = async (event) => {
         institution_name: institution_name || 'JPMorgan Chase Bank',
         login: login || 'user_good',
         password: password || 'pass_good',
-        type: type || 'BUSINESS'
+        type: type || 'BUSINESS',
+        customer
       });
 
       if (!res.ok) {
@@ -313,6 +341,8 @@ exports.handler = async (event) => {
       customer.accountType = res.bank.type;
       customer.verificationMethod = 'CHECKBOOK_IAV';
       customer.bankStatus = 'VERIFIED';
+      customer.checkbookFlag = 'VERIFIED';
+      syncCustomerInvoicesBank(state, customer);
 
       saveState(state);
       return json(200, { customer: sanitizeCustomer(customer) });
@@ -336,7 +366,8 @@ exports.handler = async (event) => {
         routing: cleanRouting,
         account: cleanAccount,
         type: type || 'BUSINESS',
-        bankName: bankName || 'Business Checking Account'
+        bankName: bankName || 'Business Checking Account',
+        customer
       });
 
       if (!res.ok) {
@@ -351,6 +382,7 @@ exports.handler = async (event) => {
       customer.accountType = res.bank.type;
       customer.verificationMethod = 'MICRODEPOSITS';
       customer.bankStatus = 'PENDING';
+      customer.checkbookFlag = 'PENDING';
       customer.attemptsRemaining = 3;
 
       const baseOrigin = origin || 'https://meridianpay243.onrender.com';
@@ -403,6 +435,8 @@ exports.handler = async (event) => {
       }
 
       customer.bankStatus = 'VERIFIED';
+      customer.checkbookFlag = 'VERIFIED';
+      syncCustomerInvoicesBank(state, customer);
       saveState(state);
       return json(200, { customer: sanitizeCustomer(customer) });
     }
@@ -461,11 +495,13 @@ exports.handler = async (event) => {
       });
     }
 
-    // 7C. 1-Click Send Verification Link & Custom Memo to Selected Unverified Customers via Email
+    // 7C. 1-Click Send Standalone Bank Verification Link & Custom Memo (Not Attached to Any Invoice)
     if (method === 'POST' && route === '/admin/send-verification-invites') {
       const { customerIds, memo, origin } = body;
       const baseOrigin = (origin || 'https://meridianpay243.onrender.com').replace(/\/$/, '');
-      const cleanMemo = String(memo || 'Please verify your business bank account via our secure guest portal so we can process your billing automatically.').trim();
+      const cleanMemo = String(
+        memo || 'Please verify your business bank account via our secure guest portal so your profile is ready for seamless ACH transfers.'
+      ).trim();
 
       let targets = [];
       if (Array.isArray(customerIds) && customerIds.includes('ALL_UNVERIFIED')) {
@@ -481,15 +517,10 @@ exports.handler = async (event) => {
       }
 
       const results = [];
+      const createdEmailIds = [];
       for (const cust of targets) {
         const verifyUrl = `${baseOrigin}/?token=${cust.token}`;
-        const unpaidInvoice = state.invoices.find(
-          i => (i.customerId === cust.id || String(i.email || '').toLowerCase() === cust.email.toLowerCase()) && i.status === 'UNPAID'
-        );
-
-        const subject = unpaidInvoice
-          ? `Action Required: Verify Bank Account for Invoice #${unpaidInvoice.number} ($${Number(unpaidInvoice.amount).toFixed(2)})`
-          : `Action Required: Verify Your Business Bank Account with ${brandName}`;
+        const subject = `Verify Your Business Bank Account`;
 
         const emailRec = await sendCustomerEmail(state, {
           to: cust.email,
@@ -498,18 +529,17 @@ exports.handler = async (event) => {
           meta: {
             customerId: cust.id,
             verifyUrl,
-            memo: cleanMemo,
-            invoiceNumber: unpaidInvoice ? unpaidInvoice.number : null
+            memo: cleanMemo
           },
           html: emailVerificationInviteTemplate({
             brandName,
             businessName: cust.businessName,
             verifyUrl,
-            memo: cleanMemo,
-            unpaidInvoice
+            memo: cleanMemo
           })
         });
 
+        createdEmailIds.push(emailRec.id);
         cust.lastInviteSentAt = new Date().toISOString();
         cust.lastInviteMemo = cleanMemo;
         results.push({
@@ -517,27 +547,52 @@ exports.handler = async (event) => {
           businessName: cust.businessName,
           email: cust.email,
           verifyUrl,
-          transport: emailRec.transport
+          transport: emailRec.transport,
+          emailId: emailRec.id
         });
       }
 
       saveState(state);
+
+      // If any email is queued for the live Gmail Relay Bridge, wait briefly so it delivers before returning
+      const hasQueued = state.emails.some(e => createdEmailIds.includes(e.id) && e.deliveryStatus === 'pending_gmail_relay');
+      if (hasQueued) {
+        for (let w = 0; w < 7; w++) {
+          await new Promise(r => setTimeout(r, 400));
+          const latest = loadState();
+          const allDone = createdEmailIds.every(id => {
+            const found = latest.emails.find(e => e.id === id);
+            return found && found.deliveryStatus === 'sent_gmail_smtp';
+          });
+          if (allDone) break;
+        }
+      }
+
       return json(200, {
         ok: true,
         sentCount: results.length,
         results,
-        message: `Verification link & memo sent to ${results.length} customer(s): ${results.map(r => `${r.businessName} (${r.email})`).join(', ')}`
+        message: `Verification link & memo emailed to ${results.length} customer(s): ${results.map(r => `${r.businessName} (${r.email})`).join(', ')}`
       });
     }
 
-    // 8. Owner Issues Invoice & Auto-Debits Verified Bank Immediately
+    // 7D. Mark Queued Email as Delivered via Gmail SMTP Bridge
+    if (method === 'POST' && route === '/admin/mark-email-delivered') {
+      const { emailId, messageId, detail } = body;
+      const em = state.emails.find(e => e.id === emailId);
+      if (em) {
+        em.deliveryStatus = 'sent_gmail_smtp';
+        em.deliveryDetail = detail || `Delivered via smtp.gmail.com:587 as "${brandName}" <${state.config.fromEmail}> (${messageId || '250 OK'})`;
+        saveState(state);
+      }
+      return json(200, { ok: true });
+    }
+
+    // 8. Owner Creates Pending Invoice OR Issues & Pays Immediately
     if (method === 'POST' && route === '/admin/invoice-autodebit') {
-      const { customerId, amount, description } = body;
+      const { customerId, amount, description, mode } = body;
       const customer = state.customers.find(c => c.id === customerId);
       if (!customer) return json(404, { error: 'Customer not found.' });
-      if (customer.bankStatus !== 'VERIFIED') {
-        return json(400, { error: 'Customer bank must be VERIFIED before issuing an auto-debit invoice.' });
-      }
 
       const numAmount = Number(amount);
       if (!numAmount || numAmount <= 0) {
@@ -545,6 +600,38 @@ exports.handler = async (event) => {
       }
 
       const invoiceNumber = `INV-${2040 + state.invoices.length + 1}`;
+      const isPendingMode = mode === 'pending' || customer.bankStatus !== 'VERIFIED';
+
+      if (isPendingMode) {
+        const res = await createPendingInvoice(state, {
+          customer,
+          amount: numAmount,
+          description: description || 'Commercial Service Agreement',
+          invoiceNumber
+        });
+        if (!res.ok) {
+          saveState(state);
+          return json(res.status || 400, { error: res.error });
+        }
+        const invoiceRecord = {
+          id: res.invoice_id,
+          payment_id: null,
+          number: res.number || invoiceNumber,
+          customerId: customer.id,
+          businessName: customer.businessName,
+          email: customer.email,
+          user_id: customer.user_id,
+          accountLast4: customer.accountLast4 || 'Unverified',
+          amount: numAmount,
+          description: description || 'Commercial Service Agreement',
+          status: 'UNPAID',
+          createdAt: new Date().toISOString()
+        };
+        state.invoices.unshift(invoiceRecord);
+        saveState(state);
+        return json(200, { invoice: invoiceRecord, pendingOnly: true });
+      }
+
       const custKey = decryptText(customer.encrypted_key);
       const custSecret = decryptText(customer.encrypted_secret);
 
@@ -565,7 +652,7 @@ exports.handler = async (event) => {
       const invoiceRecord = {
         id: res.invoice_id,
         payment_id: res.payment_id,
-        number: invoiceNumber,
+        number: res.number || invoiceNumber,
         customerId: customer.id,
         businessName: customer.businessName,
         email: customer.email,
@@ -581,13 +668,13 @@ exports.handler = async (event) => {
 
       const emailRec = await sendCustomerEmail(state, {
         to: customer.email,
-        subject: `Invoice #${invoiceNumber} ($${numAmount.toFixed(2)}) Auto-Debit Initiated (${invoiceRecord.status})`,
+        subject: `Invoice #${invoiceRecord.number} ($${numAmount.toFixed(2)}) Payment Initiated (${invoiceRecord.status})`,
         tag: `INVOICE_${invoiceRecord.status}`,
         meta: { invoiceId: invoiceRecord.id },
         html: emailInvoiceAutoDebitInitiatedTemplate({
           brandName,
           businessName: customer.businessName,
-          invoiceNumber,
+          invoiceNumber: invoiceRecord.number,
           amount: numAmount,
           description: invoiceRecord.description,
           accountLast4: customer.accountLast4,
@@ -598,6 +685,66 @@ exports.handler = async (event) => {
 
       saveState(state);
       return json(200, { invoice: invoiceRecord, emailSent: emailRec });
+    }
+
+    // 8B. Owner Clicks "Pay" on a Pending (UNPAID) Invoice Once Customer's Bank is VERIFIED
+    if (method === 'POST' && route === '/admin/pay-invoice') {
+      const { invoiceId } = body;
+      const invoice = state.invoices.find(i => i.id === invoiceId);
+      if (!invoice) return json(404, { error: 'Invoice not found.' });
+
+      const invEmail = String(invoice.email || '').trim().toLowerCase();
+      const customer = state.customers.find(
+        c => c.id === invoice.customerId || (invEmail && c.email.toLowerCase() === invEmail)
+      );
+      if (!customer || customer.bankStatus !== 'VERIFIED') {
+        return json(400, { error: 'Customer bank account must be VERIFIED before initiating the transfer for this pending invoice.' });
+      }
+
+      const custKey = decryptText(customer.encrypted_key);
+      const custSecret = decryptText(customer.encrypted_secret);
+
+      const res = await payPendingInvoice(state, {
+        invoice,
+        customer,
+        custKey,
+        custSecret
+      });
+
+      if (!res.ok) {
+        saveState(state);
+        return json(res.status || 400, { error: res.error });
+      }
+
+      invoice.status = res.status || 'IN_PROCESS';
+      invoice.payment_id = res.payment_id;
+      invoice.customerId = customer.id;
+      invoice.accountLast4 = customer.accountLast4 || invoice.accountLast4;
+
+      const emailRec = await sendCustomerEmail(state, {
+        to: customer.email,
+        subject: `Invoice #${invoice.number} ($${Number(invoice.amount).toFixed(2)}) Transfer Initiated (${invoice.status})`,
+        tag: `INVOICE_${invoice.status}`,
+        meta: { invoiceId: invoice.id },
+        html: emailInvoiceAutoDebitInitiatedTemplate({
+          brandName,
+          businessName: customer.businessName,
+          invoiceNumber: invoice.number,
+          amount: invoice.amount,
+          description: invoice.description,
+          accountLast4: customer.accountLast4,
+          status: invoice.status,
+          checkbookPaymentId: invoice.payment_id
+        })
+      });
+
+      saveState(state);
+      return json(200, {
+        ok: true,
+        invoice,
+        emailSent: emailRec,
+        message: `Transfer initiated for Invoice #${invoice.number} ($${Number(invoice.amount).toFixed(2)}) against ${customer.businessName}'s verified bank (•••• ${customer.accountLast4}).`
+      });
     }
 
     // 9. Owner Sends Outbound Payment (POST /v3/check/digital)

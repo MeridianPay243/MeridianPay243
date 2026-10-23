@@ -211,7 +211,7 @@
     .btn-brand:disabled { opacity: 0.65; cursor: not-allowed; }
     .btn-secondary { background: #fff; color: var(--ink-2); border-color: #CBD5E1; }
     .btn-secondary:hover { background: #F8FAFC; }
-    .btn-sm { height: 31px; padding: 0 11px; font-size: 11.5px; border-radius: 8px; }
+    .btn-sm { height: 32px; padding: 0 12px; font-size: 12px; border-radius: 8px; white-space: nowrap; flex-shrink: 0; }
     .btn-block { width: 100%; }
 
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -517,7 +517,7 @@
               <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
                 <div>
                   <h3>Customer Bank Verification Directory</h3>
-                  <div class="micro">Synced with your Checkbook Dashboard. Invoices auto-debit once a customer’s bank reaches <b>VERIFIED</b>.</div>
+                  <div class="micro">Synced 1:1 with your Checkbook Directory. Bank verification is standalone — pending invoices sit below until a customer’s bank is <b>VERIFIED</b>.</div>
                 </div>
                 <div class="row gap8">
                   <button type="button" class="btn btn-secondary btn-sm" id="syncCbBtn" onclick="syncCheckbookDashboard()">&#x21bb; Sync Checkbook</button>
@@ -530,7 +530,7 @@
                 <div class="row between" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
                   <div class="row gap8">
                     <span class="pill pill-green"><svg width="11" height="11"><use href="#i-mail"/></svg>1-Click Verification Invite</span>
-                    <span style="font-size:12.5px;font-weight:600;color:#065F46">Select unverified customer(s) &amp; email their direct Step-2 bank verification link + custom memo:</span>
+                    <span style="font-size:12.5px;font-weight:600;color:#065F46">Select unverified customer(s) &amp; email their standalone bank verification link + company-branded memo:</span>
                   </div>
                   <span class="micro" id="selectedUnverifiedCountLabel" style="color:#065F46;font-weight:600"></span>
                 </div>
@@ -538,7 +538,7 @@
                   <select id="inviteTargetSelect" style="height:37px;font-size:12.5px;border-color:#86EFAC">
                     <option value="CHECKED_OR_ALL">Checked Rows (or All Unverified)</option>
                   </select>
-                  <input type="text" id="inviteMemoInput" style="height:37px;font-size:12.5px;border-color:#86EFAC" value="Please verify your business bank account via our secure guest portal so we can process your billing automatically." placeholder="Custom memo / message included in the verification email…" />
+                  <input type="text" id="inviteMemoInput" style="height:37px;font-size:12.5px;border-color:#86EFAC" value="Please verify your business bank account via our secure guest portal so your profile is ready for seamless ACH transfers." placeholder="Custom memo / message included in the verification email…" />
                   <button type="button" class="btn btn-brand btn-sm" style="height:37px;padding:0 15px;font-size:12.5px" id="btnSendVerificationInvites" onclick="sendVerificationInvites()">
                     <svg width="13" height="13"><use href="#i-mail"/></svg>
                     <span>Send Verification Link &amp; Memo</span>
@@ -553,9 +553,9 @@
                       <input type="checkbox" id="selectAllUnverified" onchange="toggleSelectAllUnverified(this.checked)" style="width:15px;height:15px;cursor:pointer" title="Select all unverified customers" />
                     </th>
                     <th>Business &amp; Email</th>
-                    <th>Checkbook <span class="mono">user_id</span></th>
+                    <th>Checkbook Profile</th>
                     <th>Linked Bank</th>
-                    <th>Status</th>
+                    <th>Checkbook Flag</th>
                     <th style="text-align:right">Action</th>
                   </tr>
                 </thead>
@@ -566,8 +566,8 @@
             <div class="card" style="overflow:hidden">
               <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
                 <div>
-                  <h3>Issued &amp; Auto-Debited Invoices</h3>
-                  <div class="micro">Created via <span class="mono">POST /v3/invoice</span> (owner key) &amp; immediately debited via <span class="mono">POST /v3/invoice/payment</span> (customer key).</div>
+                  <h3>Pending &amp; Issued Invoices</h3>
+                  <div class="micro">Pending (<span class="mono">UNPAID</span>) invoices sit here until the customer’s bank account is <b>VERIFIED</b> — then click <b>Pay</b> to execute the transfer.</div>
                 </div>
               </div>
               <table>
@@ -578,7 +578,7 @@
                     <th>Memo</th>
                     <th>Amount</th>
                     <th>Status</th>
-                    <th style="text-align:right">Settlement</th>
+                    <th style="text-align:right">Transfer Action</th>
                   </tr>
                 </thead>
                 <tbody id="invoicesTableBody"></tbody>
@@ -586,22 +586,22 @@
             </div>
           </div>
 
-          <!-- RIGHT CARD: ISSUE & AUTO-DEBIT FORM -->
+          <!-- RIGHT CARD: CREATE PENDING OR PAY INVOICE FORM -->
           <div class="card card-pad">
             <div class="row between" style="margin-bottom:6px">
-              <h3>Issue &amp; Auto-Debit Invoice</h3>
+              <h3>Issue Invoice / Initiate Transfer</h3>
               <span class="pill pill-green">
                 <svg width="11" height="11"><use href="#i-bolt"/></svg>
-                Immediate ACH Pull
+                ACH Transfer
               </span>
             </div>
             <p class="micro" style="margin-bottom:16px">
-              Select a <b>VERIFIED</b> customer below. Issuing the invoice automatically triggers an ACH debit from their verified bank account and emails them a status receipt with your business app name.
+              Create a pending invoice for any customer (sits in the table until their bank is verified), or select a <b>VERIFIED</b> customer to issue &amp; transfer immediately.
             </p>
 
             <form id="autoDebitForm">
               <div class="field">
-                <label class="label">Verified Customer Account</label>
+                <label class="label">Customer Profile</label>
                 <select id="invoiceCustomerSelect" required></select>
               </div>
               <div class="field">
@@ -614,14 +614,13 @@
               </div>
 
               <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.6">
-                <div><b>1.</b> <span class="mono">POST /v3/invoice</span> (Owner key, <span class="mono">recipient = user_id</span>)</div>
-                <div><b>2.</b> <span class="mono">POST /v3/invoice/payment</span> (Customer key + <span class="mono">bank_id</span>)</div>
-                <div><b>3.</b> Emails customer <b>IN_PROCESS</b> receipt automatically</div>
+                <div><b>1.</b> Pending invoices sit in the table until the customer’s bank is <b>VERIFIED</b></div>
+                <div><b>2.</b> Once <b>VERIFIED</b>, click <b>Pay</b> on the invoice row to execute the transfer</div>
+                <div><b>3.</b> Customer automatically receives a logo-branded transfer receipt</div>
               </div>
 
               <button type="submit" class="btn btn-brand btn-block" id="issueAutoDebitBtn">
-                <span>Issue &amp; Auto-Debit Invoice Now</span>
-                <svg width="15" height="15"><use href="#i-arrow-right"/></svg>
+                <span>Issue Invoice</span>
               </button>
             </form>
           </div>
@@ -1162,6 +1161,8 @@
             const inviteBadge = c.lastInviteSentAt
               ? `<span class="pill pill-green" style="margin-left:6px;padding:1px 7px;font-size:10px">✓ Invite Sent</span>`
               : '';
+            const cbProfileId = String(c.checkbook_directory_id || c.user_id || '').slice(0, 12);
+            const flagStatus = c.checkbookFlag || (c.bankStatus === 'UNLINKED' ? 'UNVERIFIED' : c.bankStatus);
             return `
         <tr>
           <td style="padding-right:4px">
@@ -1173,13 +1174,15 @@
             <div style="font-weight:600">${c.businessName}${inviteBadge}</div>
             <div class="micro">${c.email}</div>
           </td>
-          <td><span class="mono">${c.user_id}</span></td>
-          <td>${c.accountLast4 ? `${c.bankName || 'Bank'} •••• ${c.accountLast4}` : '<span class="micro">Unlinked (Needs Bank)</span>'}</td>
-          <td>${badgeForStatus(c.bankStatus)}</td>
-          <td style="text-align:right">
+          <td>
+            <span class="mono" title="${c.checkbook_directory_id || c.user_id}">${cbProfileId}…</span>
+          </td>
+          <td>${c.accountLast4 ? `${c.bankName || 'Bank'} •••• ${c.accountLast4}` : '<span class="micro">No Bank Linked</span>'}</td>
+          <td>${badgeForStatus(flagStatus)}</td>
+          <td style="text-align:right;white-space:nowrap">
             ${isVerified
-              ? `<button class="btn btn-brand btn-sm" onclick="selectCustomerForInvoice('${c.id}')">Select for Auto-Debit</button>`
-              : `<div class="row gap6" style="justify-content:flex-end">
+              ? `<button class="btn btn-brand btn-sm" onclick="selectCustomerForInvoice('${c.id}')">Select Customer</button>`
+              : `<div style="display:inline-flex;align-items:center;gap:6px;justify-content:flex-end;white-space:nowrap">
                   <button type="button" class="btn btn-secondary btn-sm" onclick="sendSingleVerificationInvite('${c.id}','${c.businessName.replace(/'/g, "\\'")}')">
                     <svg width="11" height="11"><use href="#i-mail"/></svg>
                     <span>Send Email</span>
@@ -1188,7 +1191,7 @@
                     <svg width="11" height="11"><use href="#i-copy"/></svg>
                     <span>Copy Link</span>
                   </button>
-                  <a class="btn btn-brand btn-sm" href="/?token=${c.token}">Verify Bank &rarr;</a>
+                  <a class="btn btn-brand btn-sm" href="/?token=${c.token}">Verify Bank</a>
                 </div>`}
           </td>
         </tr>`;
@@ -1199,39 +1202,59 @@
       if (selectAllBox) selectAllBox.checked = pendingCusts.length > 0;
       updateSelectedUnverifiedCount();
 
-      // Verified customers dropdowns
+      // Customer dropdown for creating pending or immediate invoices
       const invSel = document.getElementById('invoiceCustomerSelect');
-      invSel.innerHTML = verifiedCusts.length
-        ? verifiedCusts.map(c => `<option value="${c.id}">${c.businessName} (${c.email} · •••• ${c.accountLast4})</option>`).join('')
-        : `<option value="">No VERIFIED customers yet — verify a customer first</option>`;
+      invSel.innerHTML = adminState.customers.length
+        ? adminState.customers.map(c => {
+            const st = c.bankStatus === 'VERIFIED'
+              ? `VERIFIED · •••• ${c.accountLast4}`
+              : `UNVERIFIED · Creates Pending Invoice`;
+            return `<option value="${c.id}">${c.businessName} (${st})</option>`;
+          }).join('')
+        : `<option value="">No customers yet</option>`;
 
       const paySel = document.getElementById('payoutCustomerSelect');
       paySel.innerHTML = `<option value="">— Or enter any recipient below —</option>` +
-        verifiedCusts.map(c => `<option value="${c.id}" data-name="${c.businessName}" data-email="${c.email}">${c.businessName} (${c.email})</option>`).join('');
+        adminState.customers.map(c => `<option value="${c.id}" data-name="${c.businessName}" data-email="${c.email}">${c.businessName} (${c.email})</option>`).join('');
 
-      // Invoices Table
+      // Invoices Table (Pending invoices sit here until customer bank is VERIFIED, then admin clicks Pay)
       const iBody = document.getElementById('invoicesTableBody');
       iBody.innerHTML = adminState.invoices.length
-        ? adminState.invoices.map(inv => `
+        ? adminState.invoices.map(inv => {
+            const invEmail = String(inv.email || '').trim().toLowerCase();
+            const matchedCust = adminState.customers.find(
+              c => c.id === inv.customerId || (invEmail && c.email.toLowerCase() === invEmail)
+            );
+            const isBankVerified = Boolean(matchedCust && matchedCust.bankStatus === 'VERIFIED');
+            const bankLabel = isBankVerified
+              ? `•••• ${matchedCust.accountLast4}`
+              : (inv.accountLast4 && inv.accountLast4 !== 'Unverified' ? `•••• ${inv.accountLast4}` : 'Bank Unverified');
+
+            let actionHtml = `<span class="micro">Settled</span>`;
+            if (inv.status === 'UNPAID') {
+              if (isBankVerified) {
+                actionHtml = `<button type="button" class="btn btn-brand btn-sm" id="payInvBtn_${inv.id}" onclick="payPendingInvoice('${inv.id}')">Pay</button>`;
+              } else {
+                actionHtml = `<span class="pill pill-amber" title="Pending invoice sits here until customer bank is VERIFIED">Awaiting Bank Verification</span>`;
+              }
+            } else if (inv.status === 'IN_PROCESS') {
+              actionHtml = `<button class="btn btn-secondary btn-sm" onclick="simulateWebhook('INVOICE','PAID','${inv.id}')">Mark PAID (Webhook)</button>`;
+            }
+
+            return `
           <tr>
             <td><strong>#${inv.number}</strong></td>
             <td>
               <div style="font-weight:600">${inv.businessName}</div>
-              <div class="micro">${inv.email} · •••• ${inv.accountLast4}</div>
+              <div class="micro">${inv.email} &middot; ${bankLabel}</div>
             </td>
             <td class="micro">${inv.description}</td>
             <td style="font-weight:600">$${Number(inv.amount).toFixed(2)}</td>
             <td>${badgeForStatus(inv.status)}</td>
-            <td style="text-align:right">
-              ${inv.status === 'IN_PROCESS'
-                ? `<button class="btn btn-secondary btn-sm" onclick="simulateWebhook('INVOICE','PAID','${inv.id}')">Mark PAID (Webhook)</button>`
-                : (inv.status === 'UNPAID'
-                    ? `<span class="micro" style="color:var(--amber);font-weight:600">Needs Verified Bank</span>`
-                    : `<span class="micro">Settled</span>`)}
-            </td>
-          </tr>
-        `).join('')
-        : `<tr><td colspan="6" class="micro" style="text-align:center;padding:24px">No auto-debit invoices issued yet. Use the form on the right to issue &amp; auto-debit an invoice.</td></tr>`;
+            <td style="text-align:right;white-space:nowrap">${actionHtml}</td>
+          </tr>`;
+          }).join('')
+        : `<tr><td colspan="6" class="micro" style="text-align:center;padding:24px">No invoices yet.</td></tr>`;
 
       // Payouts Table
       const pBody = document.getElementById('payoutsTableBody');
@@ -1439,11 +1462,36 @@
       }
     }
 
+    async function payPendingInvoice(invoiceId) {
+      const btn = document.getElementById('payInvBtn_' + invoiceId);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Processing…';
+      }
+      try {
+        const res = await adminFetch('/api/admin/pay-invoice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ invoiceId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to initiate transfer');
+        await loadAdminState();
+        showToast(data.message || `Transfer initiated for Invoice #${data.invoice.number}.`);
+      } catch (err) {
+        showToast(err.message, 'err');
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Pay';
+        }
+      }
+    }
+
     document.getElementById('autoDebitForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('issueAutoDebitBtn');
       btn.disabled = true;
-      btn.innerHTML = `<span>Issuing invoice &amp; initiating ACH auto-debit…</span>`;
+      btn.innerHTML = `<span>Processing invoice…</span>`;
       try {
         const res = await adminFetch('/api/admin/invoice-autodebit', {
           method: 'POST',
@@ -1451,18 +1499,19 @@
           body: JSON.stringify({
             customerId: document.getElementById('invoiceCustomerSelect').value,
             amount: document.getElementById('invoiceAmount').value,
-            description: document.getElementById('invoiceDesc').value
+            description: document.getElementById('invoiceDesc').value,
+            mode: 'pending'
           })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to issue auto-debit invoice');
+        if (!res.ok) throw new Error(data.error || 'Failed to create invoice');
         await loadAdminState();
-        showToast(`Invoice #${data.invoice.number} ($${data.invoice.amount.toFixed(2)}) issued & auto-debit is IN_PROCESS. Customer email sent via Gmail.`);
+        showToast(`Pending Invoice #${data.invoice.number} ($${Number(data.invoice.amount).toFixed(2)}) created. Once the customer's bank is VERIFIED, click Pay in the table to execute the transfer.`);
       } catch (err) {
         showToast(err.message, 'err');
       } finally {
         btn.disabled = false;
-        btn.innerHTML = `<span>Issue &amp; Auto-Debit Invoice Now</span><svg width="15" height="15"><use href="#i-arrow-right"/></svg>`;
+        btn.innerHTML = `<span>Issue Invoice</span>`;
       }
     });
 

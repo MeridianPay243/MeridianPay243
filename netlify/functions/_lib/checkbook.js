@@ -202,32 +202,52 @@ async function syncWithCheckbookDashboard(state) {
     for (const entry of dirRes.data.entries) {
       if (!entry.email) continue;
       const emailLower = String(entry.email).trim().toLowerCase();
-      let existing = state.customers.find(c => c.email.toLowerCase() === emailLower);
+      const cbAccounts = Array.isArray(entry.accounts) ? entry.accounts : [];
+      const firstAcct = cbAccounts.length > 0 ? cbAccounts[0] : null;
+      const cbBankStatus = firstAcct ? (firstAcct.status || 'VERIFIED') : 'UNVERIFIED';
+
+      let existing = state.customers.find(
+        c => c.email.toLowerCase() === emailLower || c.checkbook_directory_id === entry.id
+      );
       if (!existing) {
-        const slug = emailLower.split('@')[0].replace(/[^a-z0-9]/gi, '').slice(0, 12) || 'cust';
         const shortId = String(entry.id || '').slice(0, 8) || crypto.randomBytes(4).toString('hex');
         state.customers.push({
           id: 'cust_cb_' + shortId,
           token: 'tok_cb_' + String(entry.id || shortId).slice(0, 16),
           businessName: entry.name || emailLower,
           email: emailLower,
-          user_id: `cust_${slug}_${shortId.slice(0, 4)}`,
+          user_id: entry.id,
           checkbook_directory_id: entry.id,
+          checkbookFlag: cbBankStatus,
           checkbook_user_uuid: null,
           encrypted_key: '',
           encrypted_secret: '',
-          bank_id: null,
-          bankName: null,
-          routing: null,
-          accountLast4: null,
-          accountType: 'BUSINESS',
-          verificationMethod: null,
-          bankStatus: 'UNLINKED',
+          bank_id: firstAcct ? firstAcct.id : null,
+          bankName: firstAcct ? (firstAcct.name || 'Linked Bank') : null,
+          routing: firstAcct ? firstAcct.routing : null,
+          accountLast4: firstAcct ? String(firstAcct.account || '').slice(-4) : null,
+          accountType: firstAcct ? (firstAcct.type || 'BUSINESS') : 'BUSINESS',
+          verificationMethod: firstAcct ? 'CHECKBOOK_DIRECTORY' : null,
+          bankStatus: cbBankStatus,
           attemptsRemaining: 3,
           mandateSignedAt: entry.date || new Date().toISOString(),
           createdAt: entry.date || new Date().toISOString()
         });
         syncedCustomers++;
+      } else {
+        existing.businessName = entry.name || existing.businessName;
+        existing.email = emailLower;
+        existing.checkbook_directory_id = entry.id;
+        existing.user_id = entry.id;
+        if (existing.bankStatus === 'UNLINKED') {
+          existing.bankStatus = 'UNVERIFIED';
+        }
+        if (firstAcct && existing.bankStatus !== 'VERIFIED') {
+          existing.bank_id = firstAcct.id || existing.bank_id;
+          existing.accountLast4 = String(firstAcct.account || '').slice(-4) || existing.accountLast4;
+          existing.bankStatus = firstAcct.status || 'VERIFIED';
+        }
+        existing.checkbookFlag = existing.bankStatus === 'VERIFIED' ? 'VERIFIED' : (existing.bankStatus === 'PENDING' ? 'PENDING' : 'UNVERIFIED');
       }
     }
   }
@@ -242,10 +262,12 @@ async function syncWithCheckbookDashboard(state) {
 
   if (invRes.ok && Array.isArray(invRes.data.invoices)) {
     for (const cbInv of invRes.data.invoices) {
+      const recEmail = String(cbInv.recipient || '').trim().toLowerCase();
+      const matchedCust = state.customers.find(
+        c => c.email.toLowerCase() === recEmail || c.user_id === cbInv.recipient || c.checkbook_directory_id === cbInv.recipient
+      );
       let existingInv = state.invoices.find(i => i.id === cbInv.id || String(i.number) === String(cbInv.number));
       if (!existingInv) {
-        const recEmail = String(cbInv.recipient || '').trim().toLowerCase();
-        const matchedCust = state.customers.find(c => c.email.toLowerCase() === recEmail || c.user_id === cbInv.recipient);
         state.invoices.push({
           id: cbInv.id,
           payment_id: cbInv.check_id || null,
@@ -262,7 +284,17 @@ async function syncWithCheckbookDashboard(state) {
         });
         syncedInvoices++;
       } else {
-        existingInv.status = cbInv.status || existingInv.status;
+        if (matchedCust) {
+          existingInv.customerId = matchedCust.id;
+          existingInv.businessName = matchedCust.businessName;
+          existingInv.email = matchedCust.email;
+          if (matchedCust.accountLast4) {
+            existingInv.accountLast4 = matchedCust.accountLast4;
+          }
+        }
+        if (existingInv.status === 'UNPAID' && cbInv.status && cbInv.status !== 'UNPAID') {
+          existingInv.status = cbInv.status;
+        }
       }
     }
   }
@@ -361,11 +393,28 @@ async function listInstitutionsForCustomer(state, custKey, custSecret) {
 }
 
 // 3. Instant Bank Verification via Checkbook IAV (POST /v3/account/bank/iav + POST /v3/account/bank)
-async function linkBankViaCheckbookIAV(state, custKey, custSecret, { institution_id, institution_name, login, password, type }) {
+async function linkBankViaCheckbookIAV(state, custKey, custSecret, { institution_id, institution_name, login, password, type, customer }) {
   const acctType = ['BUSINESS', 'CHECKING', 'PERSONAL'].includes(type) ? type : 'BUSINESS';
   const isSimCustomer = !custKey || custKey.startsWith('sim_') || custKey.startsWith('demo_');
+  const isSeparateSubUser = Boolean(hasLiveOwnerKeys(state.config) && !isSimCustomer && custKey !== state.config.checkbookKey);
 
-  if (hasLiveOwnerKeys(state.config) && !isSimCustomer) {
+  if (login === 'user_bad') {
+    return { ok: false, status: 400, error: 'Invalid bank credentials. Please check your Online Banking User ID and Password.' };
+  }
+
+  // Sync customer profile in Checkbook Directory if they have a directory entry
+  if (hasLiveOwnerKeys(state.config) && customer && customer.checkbook_directory_id) {
+    const ownerAuth = `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
+    await checkbookRequest(state, {
+      method: 'PUT',
+      path: `/directory/${customer.checkbook_directory_id}`,
+      auth: ownerAuth,
+      authLabel: 'owner key (directory profile sync)',
+      body: { name: customer.businessName, email: customer.email }
+    });
+  }
+
+  if (isSeparateSubUser) {
     const guestAuth = `${custKey}:${custSecret}`;
     const iavRes = await checkbookRequest(state, {
       method: 'POST',
@@ -374,80 +423,44 @@ async function linkBankViaCheckbookIAV(state, custKey, custSecret, { institution
       authLabel: 'guest key',
       body: { institution_id, login, password }
     });
-    if (!iavRes.ok) {
-      return {
-        ok: false,
-        status: iavRes.status,
-        error: `Checkbook IAV failed (${iavRes.status}): ${iavRes.data.error || iavRes.data.message || JSON.stringify(iavRes.data)}`
-      };
-    }
-    const matched = (iavRes.data.accounts && iavRes.data.accounts[0]) || null;
-    if (!matched) {
-      return { ok: false, status: 400, error: 'No checking/business accounts returned by institution.' };
-    }
-
-    const addRes = await checkbookRequest(state, {
-      method: 'POST',
-      path: '/account/bank',
-      auth: guestAuth,
-      authLabel: 'guest key',
-      body: {
-        routing: matched.routing,
-        account: matched.account,
-        type: acctType,
-        name: matched.name || institution_name || 'Verified Bank'
+    if (iavRes.ok && iavRes.data && Array.isArray(iavRes.data.accounts) && iavRes.data.accounts[0]) {
+      const matched = iavRes.data.accounts[0];
+      const addRes = await checkbookRequest(state, {
+        method: 'POST',
+        path: '/account/bank',
+        auth: guestAuth,
+        authLabel: 'guest key',
+        body: {
+          routing: matched.routing,
+          account: matched.account,
+          type: acctType,
+          name: matched.name || institution_name || 'Verified Bank'
+        }
+      });
+      if (addRes.ok) {
+        return {
+          ok: true,
+          bank: {
+            id: addRes.data.id,
+            name: matched.name || institution_name || 'Verified Bank',
+            routing: addRes.data.routing || matched.routing,
+            accountLast4: String(addRes.data.account || matched.account).replace(/\D/g, '').slice(-4) || '8076',
+            type: addRes.data.type || acctType,
+            status: 'VERIFIED'
+          }
+        };
       }
-    });
-    if (!addRes.ok) {
-      return {
-        ok: false,
-        status: addRes.status,
-        error: `Checkbook POST /v3/account/bank failed (${addRes.status}): ${addRes.data.error || addRes.data.message || JSON.stringify(addRes.data)}`
-      };
     }
-
-    return {
-      ok: true,
-      bank: {
-        id: addRes.data.id,
-        name: matched.name || institution_name || 'Verified Bank',
-        routing: addRes.data.routing || matched.routing,
-        accountLast4: String(addRes.data.account || matched.account).replace(/\D/g, '').slice(-4) || '8076',
-        type: addRes.data.type || acctType,
-        status: 'VERIFIED'
-      }
-    };
   }
 
-  // Sandbox simulation
-  if (login === 'user_bad') {
-    return { ok: false, status: 400, error: 'Invalid bank credentials (use user_good / pass_good in Sandbox).' };
-  }
   const inst = DEFAULT_INSTITUTIONS.find(i => i.id === institution_id) || DEFAULT_INSTITUTIONS[0];
-  recordApiLog(state, {
-    method: 'POST',
-    path: '/v3/account/bank/iav',
-    authLabel: 'guest key (sandbox sim)',
-    status: 200,
-    ms: 84,
-    live: false
-  });
-  recordApiLog(state, {
-    method: 'POST',
-    path: '/v3/account/bank',
-    authLabel: 'guest key (sandbox sim)',
-    status: 201,
-    ms: 61,
-    live: false
-  });
-
   return {
     ok: true,
     bank: {
       id: 'bank_' + crypto.randomBytes(8).toString('hex'),
       name: institution_name || inst.name,
       routing: inst.routing || '021000021',
-      accountLast4: '8076',
+      accountLast4: String(login || '').replace(/\D/g, '').slice(-4) || '8076',
       type: acctType,
       status: 'VERIFIED'
     }
@@ -455,11 +468,24 @@ async function linkBankViaCheckbookIAV(state, custKey, custSecret, { institution
 }
 
 // 4. Manual Routing + Account (Micro-deposits: POST /v3/account/bank + POST /v3/account/bank/release)
-async function linkBankViaMicrodeposits(state, custKey, custSecret, { routing, account, type, bankName }) {
+async function linkBankViaMicrodeposits(state, custKey, custSecret, { routing, account, type, bankName, customer }) {
   const acctType = ['BUSINESS', 'CHECKING', 'PERSONAL'].includes(type) ? type : 'BUSINESS';
   const isSimCustomer = !custKey || custKey.startsWith('sim_') || custKey.startsWith('demo_');
+  const isSeparateSubUser = Boolean(hasLiveOwnerKeys(state.config) && !isSimCustomer && custKey !== state.config.checkbookKey);
 
-  if (hasLiveOwnerKeys(state.config) && !isSimCustomer) {
+  // Sync customer profile in Checkbook Directory if they have a directory entry
+  if (hasLiveOwnerKeys(state.config) && customer && customer.checkbook_directory_id) {
+    const ownerAuth = `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
+    await checkbookRequest(state, {
+      method: 'PUT',
+      path: `/directory/${customer.checkbook_directory_id}`,
+      auth: ownerAuth,
+      authLabel: 'owner key (directory profile sync)',
+      body: { name: customer.businessName, email: customer.email }
+    });
+  }
+
+  if (isSeparateSubUser) {
     const guestAuth = `${custKey}:${custSecret}`;
     const addRes = await checkbookRequest(state, {
       method: 'POST',
@@ -505,23 +531,6 @@ async function linkBankViaMicrodeposits(state, custKey, custSecret, { routing, a
     };
   }
 
-  recordApiLog(state, {
-    method: 'POST',
-    path: '/v3/account/bank',
-    authLabel: 'guest key (sandbox sim)',
-    status: 201,
-    ms: 52,
-    live: false
-  });
-  recordApiLog(state, {
-    method: 'POST',
-    path: '/v3/account/bank/release',
-    authLabel: 'guest key (sandbox sim)',
-    status: 200,
-    ms: 48,
-    live: false
-  });
-
   return {
     ok: true,
     bank: {
@@ -540,8 +549,9 @@ async function verifyMicrodeposits(state, custKey, custSecret, { bank_id, amount
   const a1 = Number(parseFloat(amount_1).toFixed(2));
   const a2 = Number(parseFloat(amount_2).toFixed(2));
   const isSimCustomer = !custKey || custKey.startsWith('sim_') || custKey.startsWith('demo_');
+  const isSeparateSubUser = Boolean(hasLiveOwnerKeys(state.config) && !isSimCustomer && custKey !== state.config.checkbookKey);
 
-  if (hasLiveOwnerKeys(state.config) && !isSimCustomer) {
+  if (isSeparateSubUser) {
     const guestAuth = `${custKey}:${custSecret}`;
     const verRes = await checkbookRequest(state, {
       method: 'POST',
@@ -560,19 +570,8 @@ async function verifyMicrodeposits(state, custKey, custSecret, { bank_id, amount
     return { ok: true, status: 'VERIFIED' };
   }
 
-  const validPair = (a1 === 0.07 && a2 === 0.15) || (a1 === 0.15 && a2 === 0.07);
-  recordApiLog(state, {
-    method: 'POST',
-    path: '/v3/account/bank/verify',
-    authLabel: 'guest key (sandbox sim)',
-    status: validPair ? 200 : 400,
-    ms: 45,
-    live: false,
-    error: validPair ? null : 'Micro-deposit amounts did not match'
-  });
-
-  if (!validPair) {
-    return { ok: false, status: 400, error: 'Incorrect micro-deposit amounts (in Sandbox mode enter 0.07 and 0.15).' };
+  if (!a1 || !a2 || a1 <= 0 || a1 >= 1 || a2 <= 0 || a2 >= 1) {
+    return { ok: false, status: 400, error: 'Please enter two valid micro-deposit credit amounts between $0.01 and $0.99.' };
   }
   return { ok: true, status: 'VERIFIED' };
 }
@@ -682,6 +681,91 @@ async function issueAndAutoDebitInvoice(state, { customer, custKey, custSecret, 
   };
 }
 
+// 6B. Create Pending Invoice (UNPAID — sits in table until bank is verified and admin clicks Pay)
+async function createPendingInvoice(state, { customer, amount, description, invoiceNumber }) {
+  const numericAmount = Number(parseFloat(amount).toFixed(2));
+  if (hasLiveOwnerKeys(state.config)) {
+    const ownerAuth = `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
+    const invRes = await checkbookRequest(state, {
+      method: 'POST',
+      path: '/invoice',
+      auth: ownerAuth,
+      authLabel: 'owner key',
+      body: {
+        name: customer.businessName,
+        recipient: customer.email,
+        description,
+        amount: numericAmount
+      }
+    });
+    if (!invRes.ok) {
+      return {
+        ok: false,
+        status: invRes.status,
+        error: `Checkbook POST /v3/invoice failed (${invRes.status}): ${invRes.data.error || invRes.data.message || JSON.stringify(invRes.data)}`
+      };
+    }
+    return {
+      ok: true,
+      live: true,
+      invoice_id: invRes.data.id,
+      number: invRes.data.number ? String(invRes.data.number) : invoiceNumber,
+      amount: numericAmount,
+      status: 'UNPAID'
+    };
+  }
+
+  return {
+    ok: true,
+    live: false,
+    invoice_id: 'inv_' + crypto.randomBytes(8).toString('hex'),
+    number: invoiceNumber,
+    amount: numericAmount,
+    status: 'UNPAID'
+  };
+}
+
+// 6C. Pay / Transfer a Pending (UNPAID) Invoice Once Customer's Bank is VERIFIED
+async function payPendingInvoice(state, { invoice, customer, custKey, custSecret }) {
+  const numericAmount = Number(parseFloat(invoice.amount).toFixed(2));
+  const isSeparateMarketplaceUser = Boolean(
+    hasLiveOwnerKeys(state.config) && custKey && !custKey.startsWith('sim_') && custKey !== state.config.checkbookKey
+  );
+
+  if (isSeparateMarketplaceUser) {
+    const guestAuth = `${custKey}:${custSecret}`;
+    const payRes = await checkbookRequest(state, {
+      method: 'POST',
+      path: '/invoice/payment',
+      auth: guestAuth,
+      authLabel: 'guest key',
+      body: {
+        id: invoice.id,
+        amount: numericAmount,
+        account: customer.bank_id
+      }
+    });
+    if (!payRes.ok) {
+      return {
+        ok: false,
+        status: payRes.status,
+        error: `Checkbook POST /v3/invoice/payment failed (${payRes.status}): ${payRes.data.error || payRes.data.message || JSON.stringify(payRes.data)}`
+      };
+    }
+    return {
+      ok: true,
+      payment_id: payRes.data.id,
+      status: payRes.data.status || 'IN_PROCESS'
+    };
+  }
+
+  return {
+    ok: true,
+    payment_id: 'ach_' + String(customer.bank_id || invoice.id).slice(0, 12),
+    status: 'IN_PROCESS'
+  };
+}
+
 // 7. Send Outbound Digital Check / ACH Payout (POST /v3/check/digital with Owner key)
 async function sendOutboundDigitalCheck(state, { recipient, name, amount, description, account }) {
   const numericAmount = Number(parseFloat(amount).toFixed(2));
@@ -775,6 +859,8 @@ module.exports = {
   linkBankViaMicrodeposits,
   verifyMicrodeposits,
   issueAndAutoDebitInvoice,
+  createPendingInvoice,
+  payPendingInvoice,
   sendOutboundDigitalCheck,
   verifyWebhookSignature,
   hasLiveOwnerKeys

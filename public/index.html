@@ -515,6 +515,15 @@
 
       <!-- STEP 2: BANK VERIFICATION (MICRO-DEPOSITS + INSTANT IAV) -->
       <section id="step2Card" class="card hidden">
+        <div style="background:#F0FDF4;border-bottom:1px solid #BBF7D0;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div class="row gap8">
+            <span class="pill pill-green"><svg width="11" height="11"><use href="#i-check"/></svg>Profile Matched</span>
+            <span style="font-size:13px;font-weight:700;color:#065F46" id="step2ProfileBannerName">—</span>
+            <span class="micro" style="color:#047857" id="step2ProfileBannerEmail"></span>
+          </div>
+          <span class="pill pill-amber" id="step2CheckbookFlagPill">Checkbook Flag: UNVERIFIED</span>
+        </div>
+
         <div class="tabs">
           <div class="tab active" id="tabManualBtn" onclick="switchBankTab('manual')">
             <svg width="15" height="15"><use href="#i-bank"/></svg>
@@ -898,12 +907,17 @@
 
       st1.innerHTML = `<span class="n"><svg width="12" height="12"><use href="#i-check"/></svg></span>Business Profile`;
 
-      if (c.bankStatus === 'UNLINKED') {
+      if (c.bankStatus === 'UNVERIFIED' || c.bankStatus === 'UNLINKED') {
         s2.classList.remove('hidden');
         st1.className = 'step done'; st2.className = 'step now'; st3.className = 'step';
-        document.getElementById('sideStatusPill').textContent = 'Step 2 · Link Bank';
-        document.getElementById('sideStatusPill').className = 'pill pill-blue';
-        document.getElementById('sideGate').textContent = 'Awaiting Bank Link';
+        if (document.getElementById('step2ProfileBannerName')) {
+          document.getElementById('step2ProfileBannerName').textContent = c.businessName;
+          document.getElementById('step2ProfileBannerEmail').textContent = `(${c.email})`;
+          document.getElementById('step2CheckbookFlagPill').textContent = `Checkbook Flag: ${c.checkbookFlag || 'UNVERIFIED'}`;
+        }
+        document.getElementById('sideStatusPill').textContent = 'UNVERIFIED · Link Bank';
+        document.getElementById('sideStatusPill').className = 'pill pill-amber';
+        document.getElementById('sideGate').textContent = 'Awaiting Bank Verification';
         document.getElementById('sideGate').style.color = 'var(--amber)';
         loadInstitutions();
       } else if (c.bankStatus === 'PENDING') {
