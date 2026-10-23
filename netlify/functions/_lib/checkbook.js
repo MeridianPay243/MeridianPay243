@@ -711,7 +711,6 @@ async function issueAndAutoDebitInvoice(state, { customer, custKey, custSecret, 
 
     // Standard merchant key + Directory customer: execute live auto-debit via owner's Checkbook key
     // POST /v3/invoice/payment debits the customer's verified bank account (customer.bank_id)
-    const ownerAuth = `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
     const payRes2 = await checkbookRequest(state, {
       method: 'POST',
       path: '/invoice/payment',
