@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover" />
   <title>Meridian Pay Admin — Secured Console</title>
+  <meta name="theme-color" content="#0A1220" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Meridian Pay" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <style>
     :root {
@@ -156,8 +164,32 @@
       gap: 24px;
       align-items: start;
     }
+    .limits-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .invite-bar-grid {
+      display: grid;
+      grid-template-columns: 230px 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
     @media (max-width: 960px) {
       .grid-2, .grid-equal { grid-template-columns: 1fr; }
+      .limits-grid { grid-template-columns: 1fr; }
+      .invite-bar-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 720px) {
+      .wrap { padding: 0 14px; }
+      .topbar { height: auto; padding: 10px 0; }
+      .topbar .wrap { flex-wrap: wrap; gap: 8px; }
+      .navtabs { width: 100%; order: 3; overflow-x: auto; padding-bottom: 2px; }
+      .navtab { white-space: nowrap; padding: 7px 11px; font-size: 12px; }
+      .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .card-pad { padding: 16px 14px; }
+      input, select { font-size: 16px; }
+      table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     }
 
     .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
@@ -469,7 +501,7 @@
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+        <div class="limits-grid">
           <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:11px;padding:12px 14px">
             <div class="row between" style="margin-bottom:4px">
               <span class="micro" style="font-weight:600;color:var(--ink-2)">Per-Transaction Limit</span>
@@ -534,7 +566,7 @@
                   </div>
                   <span class="micro" id="selectedUnverifiedCountLabel" style="color:#065F46;font-weight:600"></span>
                 </div>
-                <div style="display:grid;grid-template-columns:230px 1fr auto;gap:10px;align-items:center">
+                <div class="invite-bar-grid">
                   <select id="inviteTargetSelect" style="height:37px;font-size:12.5px;border-color:#86EFAC">
                     <option value="CHECKED_OR_ALL">Checked Rows (or All Unverified)</option>
                   </select>

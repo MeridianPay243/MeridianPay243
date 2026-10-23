@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover" />
   <title>Meridian Pay — Business Bank Verification &amp; ACH Authorization</title>
+  <meta name="theme-color" content="#0A1220" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Meridian Pay" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <style>
     :root {
@@ -216,15 +224,41 @@
       gap: 14px;
     }
     @media (max-width: 680px) {
+      .wrap { padding: 0 16px; }
+      .topbar { height: 60px; }
+      .topbar-tls-pill { display: none !important; }
+      .main-grid { padding: 20px 0 44px; gap: 20px; }
       .form-grid-routing, .form-grid-2 {
         grid-template-columns: 1fr !important;
       }
       .card-pad {
-        padding: 20px 18px;
+        padding: 20px 16px;
+      }
+      h1 { font-size: 22px; }
+      h2 { font-size: 18.5px; }
+      input[type="text"], input[type="email"], input[type="password"], input[type="number"], select {
+        font-size: 16px;
       }
       .tabs {
-        padding: 0 14px;
+        padding: 0 10px;
         overflow-x: auto;
+      }
+      .tab {
+        padding: 13px 10px;
+        font-size: 12.5px;
+        flex: 1;
+        justify-content: center;
+      }
+      .tab .pill { display: none; }
+      .check-helper {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .step2-profile-banner {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 8px;
       }
     }
     input[type="text"], input[type="email"], input[type="password"], input[type="number"], select {
@@ -483,7 +517,7 @@
       </div>
 
       <div class="row gap10">
-        <span class="pill pill-green">
+        <span class="pill pill-green topbar-tls-pill">
           <svg width="12" height="12"><use href="#i-lock"/></svg>
           256-Bit TLS Encrypted
         </span>
