@@ -552,10 +552,11 @@
               <div class="field">
                 <label class="label" for="routingInput">
                   <span>9-Digit ABA Routing Number</span>
+                  <span class="micro" id="routingStatusTop" style="color:var(--brand-700);font-weight:600"></span>
                 </label>
                 <div class="input-wrap">
-                  <input type="text" id="routingInput" placeholder="e.g. 322271627" maxlength="9" inputmode="numeric" required oninput="onRoutingInput()" />
-                  <span class="input-suffix" id="routingBankBadge" style="color:var(--brand-700)"></span>
+                  <input type="text" id="routingInput" placeholder="e.g. 322271627" maxlength="9" inputmode="numeric" required oninput="onRoutingInput()" onkeyup="onRoutingInput()" onchange="onRoutingInput()" onpaste="setTimeout(onRoutingInput, 20)" />
+                  <span class="input-suffix" id="routingBankBadge" style="color:var(--brand-700);max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
                 </div>
               </div>
 
@@ -790,17 +791,111 @@
     const ABA_BANKS = {
       '322271627': 'JPMorgan Chase Bank, N.A.',
       '021000021': 'JPMorgan Chase Bank, N.A.',
+      '044000037': 'JPMorgan Chase Bank, N.A.',
+      '072000326': 'JPMorgan Chase Bank, N.A.',
+      '111000614': 'JPMorgan Chase Bank, N.A.',
+      '071000013': 'JPMorgan Chase Bank, N.A.',
+      '065400137': 'JPMorgan Chase Bank, N.A.',
+      '102001017': 'JPMorgan Chase Bank, N.A.',
+      '124001545': 'JPMorgan Chase Bank, N.A.',
+      '122100024': 'JPMorgan Chase Bank, N.A.',
+      '083000137': 'JPMorgan Chase Bank, N.A.',
+      '267084131': 'JPMorgan Chase Bank, N.A.',
       '026009593': 'Bank of America, N.A.',
+      '011000138': 'Bank of America, N.A.',
+      '021200339': 'Bank of America, N.A.',
+      '051000017': 'Bank of America, N.A.',
+      '052001633': 'Bank of America, N.A.',
+      '053000196': 'Bank of America, N.A.',
+      '061000052': 'Bank of America, N.A.',
+      '063100277': 'Bank of America, N.A.',
+      '071000039': 'Bank of America, N.A.',
+      '081000032': 'Bank of America, N.A.',
+      '111000025': 'Bank of America, N.A.',
+      '121000358': 'Bank of America, N.A.',
+      '122000661': 'Bank of America, N.A.',
+      '125000024': 'Bank of America, N.A.',
       '121000248': 'Wells Fargo Bank, N.A.',
+      '121042882': 'Wells Fargo Bank, N.A.',
+      '111900659': 'Wells Fargo Bank, N.A.',
+      '063107513': 'Wells Fargo Bank, N.A.',
+      '061000227': 'Wells Fargo Bank, N.A.',
+      '053000219': 'Wells Fargo Bank, N.A.',
+      '021200025': 'Wells Fargo Bank, N.A.',
+      '031000503': 'Wells Fargo Bank, N.A.',
+      '041215537': 'Wells Fargo Bank, N.A.',
+      '071101307': 'Wells Fargo Bank, N.A.',
+      '091000019': 'Wells Fargo Bank, N.A.',
+      '102000076': 'Wells Fargo Bank, N.A.',
+      '122000247': 'Wells Fargo Bank, N.A.',
+      '123006800': 'Wells Fargo Bank, N.A.',
       '021000089': 'Citibank, N.A.',
+      '321171184': 'Citibank, N.A.',
+      '322271724': 'Citibank, N.A.',
+      '266086554': 'Citibank, N.A.',
+      '254070116': 'Citibank, N.A.',
+      '271070801': 'Citibank, N.A.',
+      '113193532': 'Citibank, N.A.',
       '122105155': 'U.S. Bank, N.A.',
+      '091000022': 'U.S. Bank, N.A.',
+      '123000220': 'U.S. Bank, N.A.',
+      '121122676': 'U.S. Bank, N.A.',
+      '042000013': 'U.S. Bank, N.A.',
+      '081000210': 'U.S. Bank, N.A.',
       '043000096': 'PNC Bank, N.A.',
+      '031000053': 'PNC Bank, N.A.',
+      '041000124': 'PNC Bank, N.A.',
+      '071921891': 'PNC Bank, N.A.',
+      '083000108': 'PNC Bank, N.A.',
+      '054000030': 'PNC Bank, N.A.',
+      '267084199': 'PNC Bank, N.A.',
       '051405515': 'Capital One, N.A.',
+      '056073502': 'Capital One, N.A.',
+      '065000090': 'Capital One, N.A.',
+      '021407912': 'Capital One, N.A.',
+      '111901014': 'Capital One, N.A.',
       '031101266': 'TD Bank, N.A.',
+      '011103093': 'TD Bank, N.A.',
+      '054001725': 'TD Bank, N.A.',
+      '067014822': 'TD Bank, N.A.',
       '061000104': 'Truist Bank',
+      '053101121': 'Truist Bank',
       '011401533': 'Citizens Bank, N.A.',
+      '211070175': 'Citizens Bank, N.A.',
+      '036076150': 'Citizens Bank, N.A.',
+      '041001039': 'KeyBank, N.A.',
+      '042000314': 'Fifth Third Bank, N.A.',
+      '044000024': 'The Huntington National Bank',
+      '062005690': 'Regions Bank',
+      '022000046': 'M&T Bank',
+      '071000288': 'BMO Bank, N.A.',
+      '072000096': 'Comerica Bank',
+      '124000054': 'Zions Bancorporation, N.A.',
+      '053100300': 'First Citizens Bank & Trust Company',
+      '231372691': 'Santander Bank, N.A.',
       '121140399': 'Silicon Valley Bank',
-      '091311229': 'Choice Financial Group (Mercury)'
+      '091311229': 'Choice Financial Group (Mercury)',
+      '084106768': 'Evolve Bank & Trust',
+      '121145307': 'Column N.A. (Brex)',
+      '101019644': 'Lead Bank',
+      '064209588': 'Thread Bank (Relay)',
+      '026013673': 'Grasshopper Bank, N.A.',
+      '021214891': 'Cross River Bank',
+      '125109006': 'Coastal Community Bank',
+      '041215663': 'Sutton Bank',
+      '103100195': 'Stride Bank, N.A.',
+      '031101279': 'The Bancorp Bank, N.A.',
+      '026073150': 'Community Federal Savings Bank (Wise)',
+      '026073008': 'Community Federal Savings Bank',
+      '061120084': 'First Century Bank, N.A.',
+      '026013657': 'Piermont Bank',
+      '053112929': 'Live Oak Banking Company',
+      '256074974': 'Navy Federal Credit Union',
+      '314074269': 'USAA Federal Savings Bank',
+      '124003116': 'Ally Bank',
+      '121202211': 'Charles Schwab Bank, SSB',
+      '031100649': 'Discover Bank',
+      '124085066': 'American Express National Bank'
     };
 
     function showAlert(msg, type = 'error') {
@@ -816,18 +911,75 @@
       document.getElementById('alertBox').className = 'alert';
     }
 
-    function onRoutingInput() {
+    let lastLookedUpRouting = '';
+    async function onRoutingInput() {
       const val = document.getElementById('routingInput').value.replace(/\D/g, '');
       document.getElementById('routingInput').value = val;
       const badge = document.getElementById('routingBankBadge');
+      const topStatus = document.getElementById('routingStatusTop');
       const bankInput = document.getElementById('bankNameInput');
-      if (ABA_BANKS[val]) {
-        badge.textContent = ABA_BANKS[val];
-        if (!bankInput.value) bankInput.value = ABA_BANKS[val];
-      } else if (val.length === 9) {
-        badge.textContent = '9-Digit ABA';
-      } else {
+
+      if (val.length === 0) {
         badge.textContent = '';
+        if (topStatus) topStatus.textContent = '';
+        lastLookedUpRouting = '';
+        return;
+      }
+
+      // 1. Live prefix auto-detection while customer is typing (4 to 8 digits)
+      if (val.length < 9) {
+        lastLookedUpRouting = '';
+        if (val.length >= 4) {
+          const prefixMatchKey = Object.keys(ABA_BANKS).find(k => k.startsWith(val));
+          if (prefixMatchKey) {
+            const matchedBank = ABA_BANKS[prefixMatchKey];
+            badge.textContent = matchedBank;
+            badge.style.color = 'var(--brand-700)';
+            if (topStatus) topStatus.textContent = `${val.length}/9 digits · ${matchedBank}`;
+            bankInput.value = matchedBank;
+            return;
+          }
+        }
+        badge.textContent = `${val.length}/9 digits`;
+        badge.style.color = 'var(--muted-2)';
+        if (topStatus) topStatus.textContent = '';
+        return;
+      }
+
+      // 2. Exact 9-digit match in client-side fast map
+      if (ABA_BANKS[val]) {
+        badge.textContent = '✓ ' + ABA_BANKS[val];
+        badge.style.color = 'var(--brand-700)';
+        if (topStatus) topStatus.textContent = '✓ ABA Verified';
+        bankInput.value = ABA_BANKS[val];
+        lastLookedUpRouting = val;
+        return;
+      }
+
+      if (val === lastLookedUpRouting) return;
+      lastLookedUpRouting = val;
+      badge.textContent = 'Detecting bank…';
+      badge.style.color = 'var(--muted)';
+
+      // 3. Full 19,530-bank Federal Reserve ACH Directory lookup on backend
+      try {
+        const res = await fetch('/api/bank/routing?routing=' + encodeURIComponent(val));
+        const data = await res.json();
+        if (document.getElementById('routingInput').value !== val) return;
+        if (data && data.valid && data.bankName) {
+          ABA_BANKS[val] = data.bankName;
+          badge.textContent = '✓ ' + data.bankName;
+          badge.style.color = 'var(--brand-700)';
+          if (topStatus) topStatus.textContent = '✓ ABA Verified';
+          bankInput.value = data.bankName;
+        } else {
+          badge.textContent = 'Invalid ABA Routing';
+          badge.style.color = 'var(--amber)';
+          if (topStatus) topStatus.textContent = 'Check 9-digit routing';
+        }
+      } catch (e) {
+        badge.textContent = '9-Digit ABA';
+        badge.style.color = 'var(--brand-700)';
       }
     }
 

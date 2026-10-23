@@ -30,6 +30,7 @@ const {
   emailPayoutSentTemplate,
   emailVerificationInviteTemplate
 } = require('./_lib/mailer');
+const { lookupAbaRouting } = require('./_lib/aba-directory');
 
 function json(statusCode, payload) {
   return {
@@ -314,6 +315,13 @@ exports.handler = async (event) => {
       return json(200, inst);
     }
 
+    // 3B. Real-Time 9-Digit ABA Routing Number Auto-Detection (19,530+ Federal Reserve ACH Banks)
+    if (method === 'GET' && route === '/bank/routing') {
+      const routing = (event.queryStringParameters && event.queryStringParameters.routing) || '';
+      const info = lookupAbaRouting(routing);
+      return json(200, info);
+    }
+
     // 4. Link bank via Checkbook Built-in IAV (POST /v3/account/bank/iav -> POST /v3/account/bank)
     if (method === 'POST' && route === '/bank/iav') {
       const { token, institution_id, institution_name, login, password, type } = body;
@@ -362,13 +370,16 @@ exports.handler = async (event) => {
         return json(400, { error: 'Please enter a valid 9-digit ABA routing number and account number.' });
       }
 
+      const detectedAba = lookupAbaRouting(cleanRouting);
+      const resolvedBankName = (bankName && bankName.trim()) || detectedAba.bankName || 'Business Checking Account';
+
       const { custKey, custSecret } = await ensureMarketplaceUserKeys(state, customer);
 
       const res = await linkBankViaMicrodeposits(state, custKey, custSecret, {
         routing: cleanRouting,
         account: cleanAccount,
         type: type || 'BUSINESS',
-        bankName: bankName || 'Business Checking Account',
+        bankName: resolvedBankName,
         customer
       });
 
