@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Portal — Auto-Debit Invoices, Payouts &amp; Email Outbox</title>
+  <style>
+    :root {
+      --brand: #0B8F63;
+      --brand-700: #07714E;
+      --brand-soft: #E7F6F0;
+      --ink: #0A1220;
+      --ink-2: #1E293B;
+      --muted: #475467;
+      --muted-2: #667085;
+      --bg: #F5F7FB;
+      --line: #E2E8F0;
+      --blue: #2563EB;
+      --blue-soft: #EFF4FF;
+      --amber: #B54708;
+      --amber-soft: #FEF6EE;
+      --red: #B42318;
+      --red-soft: #FEF3F2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      height: 64px;
+      display: flex;
+      align-items: center;
+    }
+    .wrap { max-width: 1180px; width: 100%; margin: 0 auto; padding: 0 24px; }
+    .row { display: flex; align-items: center; }
+    .between { justify-content: space-between; }
+    .gap8 { gap: 8px; }
+    .gap12 { gap: 12px; }
+    .gap16 { gap: 16px; }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .mark {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: var(--brand);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 14px;
+    }
+    .navtabs { display: flex; gap: 6px; }
+    .navtab {
+      padding: 8px 14px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+    }
+    .navtab.active { background: #EDF2F7; color: var(--ink); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 22px;
+      padding: 0 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pill-green { background: var(--brand-soft); color: var(--brand-700); border: 1px solid #CDEBDD; }
+    .pill-amber { background: var(--amber-soft); color: var(--amber); border: 1px solid #F3E0C4; }
+    .pill-blue { background: var(--blue-soft); color: var(--blue); border: 1px solid #D7E1FB; }
+    .pill-grey { background: #F1F5F9; color: var(--muted); border: 1px solid var(--line); }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 6px 20px -10px rgba(10, 18, 32, 0.06);
+    }
+    .card-pad { padding: 22px 24px; }
+    h2 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.02em; }
+    h3 { font-size: 15px; margin: 0; }
+    .sub { color: var(--muted); font-size: 13.5px; margin: 0; }
+    .micro { color: var(--muted-2); font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 410px;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 920px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+    input, select {
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 9px;
+      border: 1px solid #CBD5E1;
+      font-size: 13.5px;
+      color: var(--ink);
+      background: #fff;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      height: 42px;
+      padding: 0 18px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      text-decoration: none;
+    }
+    .btn-brand { background: var(--brand); color: #fff; }
+    .btn-brand:hover { background: var(--brand-700); }
+    .btn-secondary { background: #fff; color: var(--ink-2); border-color: #CBD5E1; }
+    .btn-sm { height: 30px; padding: 0 10px; font-size: 11.5px; border-radius: 7px; }
+    .btn-block { width: 100%; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted-2);
+      border-bottom: 1px solid var(--line);
+      background: #FAFBFD;
+    }
+    td { padding: 12px 14px; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .toast {
+      padding: 11px 16px;
+      border-radius: 10px;
+      margin-bottom: 18px;
+      font-size: 13px;
+      display: none;
+    }
+    .toast.ok { display: block; background: var(--brand-soft); color: var(--brand-700); border: 1px solid #CDEBDD; }
+    .toast.err { display: block; background: var(--red-soft); color: var(--red); border: 1px solid #FECDCA; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap row between">
+      <div class="row gap12">
+        <a href="/" class="brand">
+          <span class="mark">M</span>
+          <span id="adminBrand">Meridian Pay</span>
+        </a>
+        <span class="pill pill-grey">ADMIN</span>
+      </div>
+
+      <div class="navtabs">
+        <button class="navtab active" data-tab="invoices" onclick="switchTab('invoices')">1 · Customers &amp; Auto-Debit</button>
+        <button class="navtab" data-tab="payouts" onclick="switchTab('payouts')">2 · Send Payouts</button>
+        <button class="navtab" data-tab="outbox" onclick="switchTab('outbox')">3 · Customer Emails (<span id="emailCount">0</span>)</button>
+        <button class="navtab" data-tab="settings" onclick="switchTab('settings')">4 · API Logs &amp; Keys / Hotmail Setup</button>
+      </div>
+
+      <div class="row gap8">
+        <span class="pill pill-green" id="modeIndicator">Owner VERIFIED</span>
+        <a href="/" class="btn btn-secondary btn-sm">+ Guest Form</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap" style="padding:28px 24px 64px">
+    <div id="toast" class="toast"></div>
+
+    <!-- TAB 1: VERIFIED CUSTOMERS & 1-CLICK AUTO-DEBIT INVOICING -->
+    <section id="tab-invoices">
+      <div class="grid-2">
+        <div>
+          <div class="card" style="margin-bottom:22px;overflow:hidden">
+            <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
+              <div>
+                <h3>Customers &amp; Bank Verification Gate</h3>
+                <div class="micro">Only <b>VERIFIED</b> banks can be auto-debited when you issue an invoice.</div>
+              </div>
+              <a href="/" class="btn btn-secondary btn-sm">+ Add Guest Customer</a>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Business &amp; Email</th>
+                  <th>Checkbook <span class="mono">user_id</span></th>
+                  <th>Bank Account</th>
+                  <th>Status</th>
+                  <th style="text-align:right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="customersTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card" style="overflow:hidden">
+            <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
+              <div>
+                <h3>Issued &amp; Auto-Debited Invoices</h3>
+                <div class="micro">Created with <span class="mono">POST /v3/invoice</span> (owner key) + paid immediately via <span class="mono">POST /v3/invoice/payment</span> (guest key).</div>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Customer</th>
+                  <th>Memo</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th style="text-align:right">Webhook Test</th>
+                </tr>
+              </thead>
+              <tbody id="invoicesTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- RIGHT CARD: ISSUE & AUTO-DEBIT FORM -->
+        <div class="card card-pad">
+          <div class="row between" style="margin-bottom:6px">
+            <h3>Issue &amp; Auto-Debit Invoice</h3>
+            <span class="pill pill-green">Zero Customer Clicks</span>
+          </div>
+          <p class="micro" style="margin-bottom:16px">
+            Select a <b>VERIFIED</b> customer below. Clicking the button issues the invoice, immediately initiates the ACH debit from their verified bank, and emails them the payment status.
+          </p>
+
+          <form id="autoDebitForm">
+            <div class="field">
+              <label class="label">Verified Customer</label>
+              <select id="invoiceCustomerSelect" required></select>
+            </div>
+            <div class="field">
+              <label class="label">Invoice Amount ($ USD)</label>
+              <input type="number" step="0.01" min="1" id="invoiceAmount" value="4800.00" required />
+            </div>
+            <div class="field">
+              <label class="label">Description / Memo</label>
+              <input type="text" id="invoiceDesc" value="Phase 1 build — milestones 1–2" required />
+            </div>
+
+            <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:16px;font-size:12px;color:var(--muted)">
+              <div><b>1.</b> <span class="mono">POST /v3/invoice</span> (owner key, <span class="mono">recipient = user_id</span>)</div>
+              <div style="margin-top:4px"><b>2.</b> <span class="mono">POST /v3/invoice/payment</span> (customer key + <span class="mono">bank_id</span>)</div>
+              <div style="margin-top:4px"><b>3.</b> Sends <b>IN_PROCESS</b> receipt email to customer automatically</div>
+            </div>
+
+            <button type="submit" class="btn btn-brand btn-block" id="issueAutoDebitBtn">
+              Issue &amp; Auto-Debit Invoice Now →
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: SEND PAYOUTS OUT -->
+    <section id="tab-payouts" class="hidden">
+      <div class="grid-2">
+        <div class="card" style="overflow:hidden">
+          <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
+            <div>
+              <h3>Outbound Payouts (<span class="mono">POST /v3/check/digital</span>)</h3>
+              <div class="micro">Sent from your verified Checkbook Owner profile.</div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Check #</th>
+                <th>Recipient</th>
+                <th>Memo</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th style="text-align:right">Webhook Test</th>
+              </tr>
+            </thead>
+            <tbody id="payoutsTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card card-pad">
+          <h3 style="margin-bottom:6px">Send a Payment Out</h3>
+          <p class="micro" style="margin-bottom:16px">
+            Pick a verified customer from your list (auto-deposits to their verified bank) or enter any external business name and email.
+          </p>
+          <form id="payoutForm">
+            <div class="field">
+              <label class="label">Quick-Fill From Verified Customer (Optional)</label>
+              <select id="payoutCustomerSelect" onchange="fillPayoutFromCustomer()">
+                <option value="">— Or type any recipient below —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Recipient Business / Name</label>
+              <input type="text" id="payoutName" placeholder="Northwind Studio LLC" required />
+            </div>
+            <div class="field">
+              <label class="label">Recipient Email</label>
+              <input type="email" id="payoutEmail" placeholder="dana@northwind.co" required />
+            </div>
+            <div class="field">
+              <label class="label">Amount ($ USD)</label>
+              <input type="number" step="0.01" min="1" id="payoutAmount" value="1250.00" required />
+            </div>
+            <div class="field">
+              <label class="label">Memo / Description</label>
+              <input type="text" id="payoutDesc" value="Contractor payout — settlement" required />
+            </div>
+            <button type="submit" class="btn btn-brand btn-block" id="payoutBtn">
+              Send Payout via Checkbook →
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: CUSTOMER EMAIL OUTBOX -->
+    <section id="tab-outbox" class="hidden">
+      <div class="card" style="overflow:hidden">
+        <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
+          <div>
+            <h3>Customer Notification Emails &amp; Magic Links</h3>
+            <div class="micro">Every micro-deposit link, auto-debit <span class="mono">IN_PROCESS</span> alert, and <span class="mono">PAID</span> receipt sent to customers is logged here.</div>
+          </div>
+        </div>
+        <div id="emailsList" style="padding:18px 24px;display:flex;flex-direction:column;gap:16px"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: API LOGS, WEBHOOKS & LIVE KEYS / HOTMAIL SETUP -->
+    <section id="tab-settings" class="hidden">
+      <div class="grid-2">
+        <div>
+          <div class="card" style="margin-bottom:22px;overflow:hidden">
+            <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
+              <div>
+                <h3>Checkbook v3 API Call Log</h3>
+                <div class="micro">Notice how <span class="mono">owner key</span> and <span class="mono">guest key</span> are strictly separated so 403 errors never occur.</div>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Call</th>
+                  <th>Key Used</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="apiLogsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card" style="overflow:hidden">
+            <div class="card-pad row between" style="border-bottom:1px solid var(--line)">
+              <div>
+                <h3>Checkbook Webhook Log (<span class="mono">POST /webhook/checkbook</span>)</h3>
+                <div class="micro">Verifies <span class="mono">HMAC-SHA256(rawBody + nonce, signing_key)</span>.</div>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Matched Action</th>
+                </tr>
+              </thead>
+              <tbody id="webhooksBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card card-pad">
+          <h3 style="margin-bottom:6px">Checkbook API Keys &amp; Free Hotmail/Email Setup</h3>
+          <p class="micro" style="margin-bottom:14px">
+            Paste your live Checkbook keys or free Brevo/SMTP credentials here (or set them in Netlify Environment Variables).
+          </p>
+
+          <form id="configForm">
+            <div class="field">
+              <label class="label">Brand / Business Name</label>
+              <input type="text" id="cfgBrand" placeholder="Meridian Pay" />
+            </div>
+            <div class="field">
+              <label class="label">Checkbook Environment</label>
+              <select id="cfgEnv">
+                <option value="sandbox">sandbox (sandbox.checkbook.io/v3)</option>
+                <option value="production">production (checkbook.io/v3)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Checkbook Owner Publishable Key (<span class="mono">CHECKBOOK_KEY</span>)</label>
+              <input type="text" id="cfgCbKey" placeholder="Leave blank for Sandbox simulator or paste key" />
+            </div>
+            <div class="field">
+              <label class="label">Checkbook Owner Secret Key (<span class="mono">CHECKBOOK_SECRET</span>)</label>
+              <input type="password" id="cfgCbSecret" placeholder="Paste Checkbook Secret Key" />
+            </div>
+            <div class="field">
+              <label class="label">Checkbook Webhook Signing Key (<span class="mono">CHECKBOOK_WEBHOOK_SECRET</span>)</label>
+              <input type="password" id="cfgWebhook" placeholder="Optional webhook HMAC signing key" />
+            </div>
+
+            <hr style="border:none;border-top:1px solid var(--line);margin:16px 0" />
+            <div style="font-size:12.5px;font-weight:700;margin-bottom:6px">Free Email Setup (Works with @hotmail.com for $0)</div>
+            <div class="micro" style="margin-bottom:12px">
+              Microsoft blocked password SMTP on personal <span class="mono">@hotmail.com</span> accounts in 2026. To send from your <span class="mono">@hotmail.com</span> address for <b>$0</b>: create a free account at <b>brevo.com</b> (300 emails/day free, no credit card), verify your Hotmail address as a Sender, and paste your Brevo API Key or SMTP login below:
+            </div>
+
+            <div class="field">
+              <label class="label">Sender Email Address (<span class="mono">FROM_EMAIL</span> — e.g. your @hotmail.com)</label>
+              <input type="email" id="cfgFromEmail" placeholder="yourname@hotmail.com" />
+            </div>
+            <div class="field">
+              <label class="label">Brevo Free API Key (<span class="mono">BREVO_API_KEY</span> — easiest for Hotmail)</label>
+              <input type="password" id="cfgBrevo" placeholder="xkeysib-..." />
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 90px;gap:10px">
+              <div class="field">
+                <label class="label">Or SMTP Host (<span class="mono">smtp-relay.brevo.com</span> / <span class="mono">smtp.gmail.com</span>)</label>
+                <input type="text" id="cfgSmtpHost" placeholder="smtp-relay.brevo.com" />
+              </div>
+              <div class="field">
+                <label class="label">Port</label>
+                <input type="text" id="cfgSmtpPort" value="587" />
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="field">
+                <label class="label">SMTP Login</label>
+                <input type="text" id="cfgSmtpUser" placeholder="yourname@hotmail.com" />
+              </div>
+              <div class="field">
+                <label class="label">SMTP Key / App Password</label>
+                <input type="password" id="cfgSmtpPass" placeholder="••••••••" />
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-brand btn-block">Save Settings</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let adminState = null;
+
+    function showToast(msg, type = 'ok') {
+      const t = document.getElementById('toast');
+      t.className = 'toast ' + type;
+      t.textContent = msg;
+      setTimeout(() => { t.style.display = 'none'; }, 5500);
+    }
+
+    function switchTab(name) {
+      document.querySelectorAll('.navtab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+      ['invoices', 'payouts', 'outbox', 'settings'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== name);
+      });
+    }
+
+    function badgeForStatus(st) {
+      if (st === 'VERIFIED' || st === 'PAID') return `<span class="pill pill-green">✓ ${st}</span>`;
+      if (st === 'IN_PROCESS') return `<span class="pill pill-blue">⟳ ${st}</span>`;
+      if (st === 'PENDING') return `<span class="pill pill-amber">⏳ ${st}</span>`;
+      return `<span class="pill pill-grey">${st}</span>`;
+    }
+
+    async function loadAdminState() {
+      const res = await fetch('/api/admin/state');
+      adminState = await res.json();
+
+      document.getElementById('adminBrand').textContent = adminState.config.brandName || 'Meridian Pay';
+      document.getElementById('emailCount').textContent = adminState.emails.length;
+      document.getElementById('modeIndicator').textContent = adminState.config.hasLiveCheckbookKeys
+        ? `Live Checkbook (${adminState.config.checkbookEnv})`
+        : `Sandbox Ready (${adminState.config.checkbookEnv})`;
+
+      // Customers Table
+      const cBody = document.getElementById('customersTableBody');
+      cBody.innerHTML = adminState.customers.map(c => `
+        <tr>
+          <td>
+            <div style="font-weight:600">${c.businessName}</div>
+            <div class="micro">${c.email}</div>
+          </td>
+          <td><span class="mono">${c.user_id}</span></td>
+          <td>${c.accountLast4 ? `${c.bankName || 'Bank'} •••• ${c.accountLast4}` : '<span class="micro">No bank yet</span>'}</td>
+          <td>${badgeForStatus(c.bankStatus)}</td>
+          <td style="text-align:right">
+            ${c.bankStatus === 'VERIFIED'
+              ? `<button class="btn btn-brand btn-sm" onclick="selectCustomerForInvoice('${c.id}')">Select for Auto-Debit</button>`
+              : `<a class="btn btn-secondary btn-sm" href="/?token=${c.token}">Open Guest Link →</a>`}
+          </td>
+        </tr>
+      `).join('');
+
+      // Verified customers dropdowns
+      const verified = adminState.customers.filter(c => c.bankStatus === 'VERIFIED');
+      const invSel = document.getElementById('invoiceCustomerSelect');
+      invSel.innerHTML = verified.length
+        ? verified.map(c => `<option value="${c.id}">${c.businessName} (${c.email} · •••• ${c.accountLast4})</option>`).join('')
+        : `<option value="">No VERIFIED customers yet — verify a customer first</option>`;
+
+      const paySel = document.getElementById('payoutCustomerSelect');
+      paySel.innerHTML = `<option value="">— Or type any recipient below —</option>` +
+        verified.map(c => `<option value="${c.id}" data-name="${c.businessName}" data-email="${c.email}">${c.businessName} (${c.email})</option>`).join('');
+
+      // Invoices Table
+      const iBody = document.getElementById('invoicesTableBody');
+      iBody.innerHTML = adminState.invoices.length
+        ? adminState.invoices.map(inv => `
+          <tr>
+            <td><strong>#${inv.number}</strong></td>
+            <td>
+              <div style="font-weight:600">${inv.businessName}</div>
+              <div class="micro">${inv.email} · •••• ${inv.accountLast4}</div>
+            </td>
+            <td class="micro">${inv.description}</td>
+            <td style="font-weight:600">$${Number(inv.amount).toFixed(2)}</td>
+            <td>${badgeForStatus(inv.status)}</td>
+            <td style="text-align:right">
+              ${inv.status === 'IN_PROCESS'
+                ? `<button class="btn btn-secondary btn-sm" onclick="simulateWebhook('INVOICE','PAID','${inv.id}')">Simulate PAID Webhook</button>`
+                : `<span class="micro">Settled</span>`}
+            </td>
+          </tr>
+        `).join('')
+        : `<tr><td colspan="6" class="micro" style="text-align:center;padding:24px">No auto-debit invoices issued yet. Click "Issue &amp; Auto-Debit Invoice Now" on the right to test!</td></tr>`;
+
+      // Payouts Table
+      const pBody = document.getElementById('payoutsTableBody');
+      pBody.innerHTML = adminState.payouts.length
+        ? adminState.payouts.map(p => `
+          <tr>
+            <td><strong>#${p.number}</strong></td>
+            <td><div style="font-weight:600">${p.name}</div><div class="micro">${p.recipient}</div></td>
+            <td class="micro">${p.description}</td>
+            <td style="font-weight:600">$${Number(p.amount).toFixed(2)}</td>
+            <td>${badgeForStatus(p.status)}</td>
+            <td style="text-align:right">
+              ${p.status === 'IN_PROCESS'
+                ? `<button class="btn btn-secondary btn-sm" onclick="simulateWebhook('CHECK','PAID','${p.id}')">Simulate PAID Webhook</button>`
+                : `<span class="micro">Completed</span>`}
+            </td>
+          </tr>
+        `).join('')
+        : `<tr><td colspan="6" class="micro" style="text-align:center;padding:24px">No outbound payouts sent yet.</td></tr>`;
+
+      // Emails Outbox
+      const eList = document.getElementById('emailsList');
+      eList.innerHTML = adminState.emails.length
+        ? adminState.emails.map(em => `
+          <div style="border:1px solid var(--line);border-radius:12px;padding:14px 18px;background:#FAFBFD">
+            <div class="row between" style="margin-bottom:6px">
+              <div class="row gap8">
+                <span class="pill pill-blue">${em.tag}</span>
+                <strong>To: ${em.to}</strong>
+              </div>
+              <span class="micro">${new Date(em.ts).toLocaleTimeString()} · ${em.deliveryDetail}</span>
+            </div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:10px">${em.subject}</div>
+            <div style="background:#fff;border-radius:8px;padding:10px">${em.html}</div>
+          </div>
+        `).join('')
+        : `<div class="micro" style="text-align:center;padding:24px">No customer emails generated yet. Issue an auto-debit invoice or verify a customer to see the automatic emails here.</div>`;
+
+      // API Logs
+      document.getElementById('apiLogsBody').innerHTML = adminState.apiLogs.length
+        ? adminState.apiLogs.map(l => `
+          <tr>
+            <td class="micro">${new Date(l.ts).toLocaleTimeString()}</td>
+            <td><span class="mono"><b>${l.method}</b> ${l.path}</span></td>
+            <td><span class="pill ${l.authLabel.includes('guest') ? 'pill-amber' : 'pill-grey'}">${l.authLabel}</span></td>
+            <td><span class="mono">${l.status} (${l.ms}ms)</span></td>
+          </tr>
+        `).join('')
+        : `<tr><td colspan="4" class="micro" style="text-align:center;padding:18px">No API calls logged yet.</td></tr>`;
+
+      // Webhooks
+      document.getElementById('webhooksBody').innerHTML = adminState.webhooks.length
+        ? adminState.webhooks.map(w => `
+          <tr>
+            <td class="micro">${new Date(w.ts).toLocaleTimeString()}</td>
+            <td><span class="pill pill-blue">${w.type}</span></td>
+            <td>${badgeForStatus(w.status)}</td>
+            <td class="micro">${w.matchedEntity}</td>
+          </tr>
+        `).join('')
+        : `<tr><td colspan="4" class="micro" style="text-align:center;padding:18px">No webhooks received yet.</td></tr>`;
+
+      // Settings fields
+      document.getElementById('cfgBrand').value = adminState.config.brandName || '';
+      document.getElementById('cfgEnv').value = adminState.config.checkbookEnv || 'sandbox';
+      document.getElementById('cfgFromEmail').value = adminState.config.fromEmail || '';
+      document.getElementById('cfgSmtpHost').value = adminState.config.smtpHost || '';
+      document.getElementById('cfgSmtpPort').value = adminState.config.smtpPort || '587';
+      document.getElementById('cfgSmtpUser').value = adminState.config.smtpUser || '';
+    }
+
+    function selectCustomerForInvoice(id) {
+      document.getElementById('invoiceCustomerSelect').value = id;
+      document.getElementById('invoiceAmount').focus();
+    }
+
+    function fillPayoutFromCustomer() {
+      const sel = document.getElementById('payoutCustomerSelect');
+      const opt = sel.options[sel.selectedIndex];
+      if (opt && opt.dataset.name) {
+        document.getElementById('payoutName').value = opt.dataset.name;
+        document.getElementById('payoutEmail').value = opt.dataset.email;
+      }
+    }
+
+    document.getElementById('autoDebitForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('issueAutoDebitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Creating invoice & auto-debiting verified bank…';
+      try {
+        const res = await fetch('/api/admin/invoice-autodebit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerId: document.getElementById('invoiceCustomerSelect').value,
+            amount: document.getElementById('invoiceAmount').value,
+            description: document.getElementById('invoiceDesc').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to issue auto-debit invoice');
+        await loadAdminState();
+        showToast(`Invoice #${data.invoice.number} ($${data.invoice.amount.toFixed(2)}) issued & auto-debit is IN_PROCESS! Customer status email sent.`);
+      } catch (err) {
+        showToast(err.message, 'err');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Issue & Auto-Debit Invoice Now →';
+      }
+    });
+
+    document.getElementById('payoutForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('payoutBtn');
+      btn.disabled = true;
+      btn.textContent = 'Sending payout via Checkbook…';
+      try {
+        const res = await fetch('/api/admin/payout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerId: document.getElementById('payoutCustomerSelect').value,
+            recipientName: document.getElementById('payoutName').value,
+            recipientEmail: document.getElementById('payoutEmail').value,
+            amount: document.getElementById('payoutAmount').value,
+            description: document.getElementById('payoutDesc').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to send payout');
+        await loadAdminState();
+        showToast(`Payout #${data.payout.number} ($${data.payout.amount.toFixed(2)}) sent to ${data.payout.name}!`);
+      } catch (err) {
+        showToast(err.message, 'err');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Payout via Checkbook →';
+      }
+    });
+
+    async function simulateWebhook(type, status, id) {
+      const res = await fetch('/api/admin/simulate-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, status, id })
+      });
+      if (res.ok) {
+        await loadAdminState();
+        showToast(`Webhook (${type} -> ${status}) processed! Customer settlement email sent.`);
+      }
+    }
+
+    document.getElementById('configForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        brandName: document.getElementById('cfgBrand').value,
+        checkbookEnv: document.getElementById('cfgEnv').value,
+        fromEmail: document.getElementById('cfgFromEmail').value,
+        smtpHost: document.getElementById('cfgSmtpHost').value,
+        smtpPort: document.getElementById('cfgSmtpPort').value,
+        smtpUser: document.getElementById('cfgSmtpUser').value
+      };
+      if (document.getElementById('cfgCbKey').value) payload.checkbookKey = document.getElementById('cfgCbKey').value;
+      if (document.getElementById('cfgCbSecret').value) payload.checkbookSecret = document.getElementById('cfgCbSecret').value;
+      if (document.getElementById('cfgWebhook').value) payload.webhookSecret = document.getElementById('cfgWebhook').value;
+      if (document.getElementById('cfgBrevo').value) payload.brevoApiKey = document.getElementById('cfgBrevo').value;
+      if (document.getElementById('cfgSmtpPass').value) payload.smtpPass = document.getElementById('cfgSmtpPass').value;
+
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        await loadAdminState();
+        showToast('Settings saved!');
+      }
+    });
+
+    loadAdminState();
+  </script>
+</body>
+</html>
