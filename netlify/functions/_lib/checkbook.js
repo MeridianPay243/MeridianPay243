@@ -519,52 +519,80 @@ async function linkBankViaCheckbookIAV(state, custKey, custSecret, { institution
 async function linkBankViaMicrodeposits(state, custKey, custSecret, { routing, account, type, bankName, customer }) {
   const acctType = ['BUSINESS', 'CHECKING', 'PERSONAL'].includes(type) ? type : 'BUSINESS';
   const isSimCustomer = !custKey || custKey.startsWith('sim_') || custKey.startsWith('demo_');
-  const isSeparateSubUser = Boolean(hasLiveOwnerKeys(state.config) && !isSimCustomer && custKey !== state.config.checkbookKey);
 
-  if (isSeparateSubUser) {
-    const guestAuth = `${custKey}:${custSecret}`;
+  if (hasLiveOwnerKeys(state.config)) {
+    const activeAuth = (!isSimCustomer && custKey && custSecret)
+      ? `${custKey}:${custSecret}`
+      : `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
+    const authLabel = (!isSimCustomer && custKey !== state.config.checkbookKey) ? 'guest key' : 'owner key (micro-deposit link)';
+
     const addRes = await checkbookRequest(state, {
       method: 'POST',
       path: '/account/bank',
-      auth: guestAuth,
-      authLabel: 'guest key',
+      auth: activeAuth,
+      authLabel,
       body: { routing, account, type: acctType }
     });
-    if (!addRes.ok) {
+
+    if (addRes.ok && addRes.data && addRes.data.id) {
+      const bankId = addRes.data.id;
+      // Release the 2 micro-deposit transactions on Checkbook (POST /v3/account/bank/release)
+      await checkbookRequest(state, {
+        method: 'POST',
+        path: '/account/bank/release',
+        auth: activeAuth,
+        authLabel: `${authLabel} (release micro-deposits)`,
+        body: { account: bankId }
+      });
+
       return {
-        ok: false,
-        status: addRes.status,
-        error: `Checkbook POST /v3/account/bank failed (${addRes.status}): ${addRes.data.error || addRes.data.message || JSON.stringify(addRes.data)}`
+        ok: true,
+        bank: {
+          id: bankId,
+          name: bankName || 'Business Checking',
+          routing,
+          accountLast4: String(addRes.data.account || account).slice(-4),
+          type: acctType,
+          status: 'PENDING'
+        }
       };
     }
 
-    const bankId = addRes.data.id;
-    const relRes = await checkbookRequest(state, {
-      method: 'POST',
-      path: '/account/bank/release',
-      auth: guestAuth,
-      authLabel: 'guest key',
-      body: { account: bankId }
+    // If bank account already exists on Checkbook, check GET /v3/account/bank and release micro-deposits if DEPOSIT_ONLY
+    const listRes = await checkbookRequest(state, {
+      method: 'GET',
+      path: '/account/bank',
+      auth: activeAuth,
+      authLabel: `${authLabel} (lookup existing bank)`
     });
-    if (!relRes.ok) {
-      return {
-        ok: false,
-        status: relRes.status,
-        error: `Checkbook POST /v3/account/bank/release failed (${relRes.status}): ${relRes.data.error || relRes.data.message || JSON.stringify(relRes.data)}`
-      };
-    }
-
-    return {
-      ok: true,
-      bank: {
-        id: bankId,
-        name: bankName || 'Business Checking',
-        routing,
-        accountLast4: String(addRes.data.account || account).slice(-4),
-        type: acctType,
-        status: 'PENDING'
+    if (listRes.ok && Array.isArray(listRes.data.banks)) {
+      const last4 = String(account).slice(-4);
+      const matched = listRes.data.banks.find(
+        b => String(b.routing) === String(routing) && String(b.account).slice(-4) === last4
+      );
+      if (matched && matched.id) {
+        if (matched.status === 'DEPOSIT_ONLY') {
+          await checkbookRequest(state, {
+            method: 'POST',
+            path: '/account/bank/release',
+            auth: activeAuth,
+            authLabel: `${authLabel} (release micro-deposits)`,
+            body: { account: matched.id }
+          });
+        }
+        return {
+          ok: true,
+          bank: {
+            id: matched.id,
+            name: bankName || matched.name || 'Business Checking',
+            routing,
+            accountLast4: last4,
+            type: matched.type || acctType,
+            status: matched.status === 'VERIFIED' ? 'VERIFIED' : 'PENDING'
+          }
+        };
       }
-    };
+    }
   }
 
   return {
@@ -584,16 +612,22 @@ async function linkBankViaMicrodeposits(state, custKey, custSecret, { routing, a
 async function verifyMicrodeposits(state, custKey, custSecret, { bank_id, amount_1, amount_2 }) {
   const a1 = Number(parseFloat(amount_1).toFixed(2));
   const a2 = Number(parseFloat(amount_2).toFixed(2));
-  const isSimCustomer = !custKey || custKey.startsWith('sim_') || custKey.startsWith('demo_');
-  const isSeparateSubUser = Boolean(hasLiveOwnerKeys(state.config) && !isSimCustomer && custKey !== state.config.checkbookKey);
+  if (!a1 || !a2 || a1 <= 0 || a1 >= 1 || a2 <= 0 || a2 >= 1) {
+    return { ok: false, status: 400, error: 'Please enter two valid micro-deposit credit amounts between $0.01 and $0.99.' };
+  }
 
-  if (isSeparateSubUser) {
-    const guestAuth = `${custKey}:${custSecret}`;
+  const isSimCustomer = !custKey || custKey.startsWith('sim_') || custKey.startsWith('demo_');
+  const isCheckbookBankUuid = Boolean(bank_id && !String(bank_id).startsWith('bank_'));
+
+  if (hasLiveOwnerKeys(state.config) && isCheckbookBankUuid) {
+    const activeAuth = (!isSimCustomer && custKey && custSecret)
+      ? `${custKey}:${custSecret}`
+      : `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
     const verRes = await checkbookRequest(state, {
       method: 'POST',
       path: '/account/bank/verify',
-      auth: guestAuth,
-      authLabel: 'guest key',
+      auth: activeAuth,
+      authLabel: 'owner/guest key (verify micro-deposits)',
       body: { account: bank_id, amount_1: a1, amount_2: a2 }
     });
     if (!verRes.ok) {
@@ -606,9 +640,6 @@ async function verifyMicrodeposits(state, custKey, custSecret, { bank_id, amount
     return { ok: true, status: 'VERIFIED' };
   }
 
-  if (!a1 || !a2 || a1 <= 0 || a1 >= 1 || a2 <= 0 || a2 >= 1) {
-    return { ok: false, status: 400, error: 'Please enter two valid micro-deposit credit amounts between $0.01 and $0.99.' };
-  }
   return { ok: true, status: 'VERIFIED' };
 }
 
