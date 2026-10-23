@@ -449,6 +449,66 @@
         </div>
       </div>
 
+      <!-- CHECKBOOK PAYMENT LIMITS & REAL-TIME TRANSACTION VOLUMES BAR -->
+      <div class="card card-pad" style="margin-bottom:22px;padding:16px 20px">
+        <div class="row between" style="margin-bottom:12px;flex-wrap:wrap;gap:10px">
+          <div class="row gap10">
+            <span class="pill pill-green"><svg width="11" height="11"><use href="#i-shield"/></svg>Account Limits &amp; Volumes</span>
+            <span style="font-size:13.5px;font-weight:700;color:var(--ink)" id="ownerProfileSummary">Checkbook Verified Merchant Profile</span>
+          </div>
+          <div class="row gap12" style="flex-wrap:wrap;font-size:12px;color:var(--muted)">
+            <span>Total Invoiced: <strong style="color:var(--ink)" id="volTotalInvoiced">$0.00</strong></span>
+            <span>&middot;</span>
+            <span>Unpaid (Awaiting Bank): <strong style="color:var(--amber)" id="volUnpaid">$0.00</strong></span>
+            <span>&middot;</span>
+            <span>Auto-Debiting (<span class="mono">IN_PROCESS</span>): <strong style="color:var(--blue)" id="volInProcess">$0.00</strong></span>
+            <span>&middot;</span>
+            <span>Settled (<span class="mono">PAID</span>): <strong style="color:var(--brand-700)" id="volPaid">$0.00</strong></span>
+            <span>&middot;</span>
+            <span>Outbound Payouts: <strong style="color:var(--ink)" id="volPayouts">$0.00</strong></span>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+          <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:11px;padding:12px 14px">
+            <div class="row between" style="margin-bottom:4px">
+              <span class="micro" style="font-weight:600;color:var(--ink-2)">Per-Transaction Limit</span>
+              <span class="pill pill-grey">Single Payment Max</span>
+            </div>
+            <div style="font-size:19px;font-weight:700;color:var(--ink)" id="limitPerTxVal">$2,000.00</div>
+            <div class="micro" style="margin-top:4px">Max single invoice or digital check (<a href="javascript:void(0)" onclick="switchTab('settings')" style="color:var(--brand-700);text-decoration:none;font-weight:600">configure</a>)</div>
+          </div>
+
+          <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:11px;padding:12px 14px">
+            <div class="row between" style="margin-bottom:4px">
+              <span class="micro" style="font-weight:600;color:var(--ink-2)">Daily Limit (24h GMT)</span>
+              <span class="micro" style="font-weight:700;color:var(--brand-700)" id="limitDailyRemText">$2,000.00 Remaining</span>
+            </div>
+            <div class="row between" style="align-items:baseline">
+              <div style="font-size:19px;font-weight:700;color:var(--ink)" id="limitDailyUsedVal">$0.00 <span style="font-size:12.5px;font-weight:500;color:var(--muted)">/ $2,000.00</span></div>
+              <span class="mono" id="limitDailyPct">0%</span>
+            </div>
+            <div style="height:6px;background:#E2E8F0;border-radius:999px;overflow:hidden;margin-top:8px">
+              <div id="limitDailyBar" style="height:100%;width:0%;background:var(--brand);border-radius:999px;transition:width .25s"></div>
+            </div>
+          </div>
+
+          <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:11px;padding:12px 14px">
+            <div class="row between" style="margin-bottom:4px">
+              <span class="micro" style="font-weight:600;color:var(--ink-2)">Monthly Limit (Calendar Month)</span>
+              <span class="micro" style="font-weight:700;color:var(--brand-700)" id="limitMonthlyRemText">$15,000.00 Remaining</span>
+            </div>
+            <div class="row between" style="align-items:baseline">
+              <div style="font-size:19px;font-weight:700;color:var(--ink)" id="limitMonthlyUsedVal">$0.00 <span style="font-size:12.5px;font-weight:500;color:var(--muted)">/ $15,000.00</span></div>
+              <span class="mono" id="limitMonthlyPct">0%</span>
+            </div>
+            <div style="height:6px;background:#E2E8F0;border-radius:999px;overflow:hidden;margin-top:8px">
+              <div id="limitMonthlyBar" style="height:100%;width:0%;background:var(--brand);border-radius:999px;transition:width .25s"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- TAB 1: VERIFIED CUSTOMERS & 1-CLICK AUTO-DEBIT INVOICING -->
       <section id="tab-invoices">
         <div class="grid-2">
@@ -464,9 +524,34 @@
                   <a href="/" class="btn btn-brand btn-sm">+ Onboard Customer</a>
                 </div>
               </div>
+
+              <!-- 1-CLICK SELECT UNVERIFIED USERS & SEND VERIFICATION LINK / MEMO BAR -->
+              <div style="background:#F0FDF4;border-bottom:1px solid #BBF7D0;padding:13px 18px">
+                <div class="row between" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
+                  <div class="row gap8">
+                    <span class="pill pill-green"><svg width="11" height="11"><use href="#i-mail"/></svg>1-Click Verification Invite</span>
+                    <span style="font-size:12.5px;font-weight:600;color:#065F46">Select unverified customer(s) &amp; email their direct Step-2 bank verification link + custom memo:</span>
+                  </div>
+                  <span class="micro" id="selectedUnverifiedCountLabel" style="color:#065F46;font-weight:600"></span>
+                </div>
+                <div style="display:grid;grid-template-columns:230px 1fr auto;gap:10px;align-items:center">
+                  <select id="inviteTargetSelect" style="height:37px;font-size:12.5px;border-color:#86EFAC">
+                    <option value="CHECKED_OR_ALL">Checked Rows (or All Unverified)</option>
+                  </select>
+                  <input type="text" id="inviteMemoInput" style="height:37px;font-size:12.5px;border-color:#86EFAC" value="Please verify your business bank account via our secure guest portal so we can process your billing automatically." placeholder="Custom memo / message included in the verification email…" />
+                  <button type="button" class="btn btn-brand btn-sm" style="height:37px;padding:0 15px;font-size:12.5px" id="btnSendVerificationInvites" onclick="sendVerificationInvites()">
+                    <svg width="13" height="13"><use href="#i-mail"/></svg>
+                    <span>Send Verification Link &amp; Memo</span>
+                  </button>
+                </div>
+              </div>
+
               <table>
                 <thead>
                   <tr>
+                    <th style="width:36px;padding-right:4px">
+                      <input type="checkbox" id="selectAllUnverified" onchange="toggleSelectAllUnverified(this.checked)" style="width:15px;height:15px;cursor:pointer" title="Select all unverified customers" />
+                    </th>
                     <th>Business &amp; Email</th>
                     <th>Checkbook <span class="mono">user_id</span></th>
                     <th>Linked Bank</th>
@@ -521,7 +606,7 @@
               </div>
               <div class="field">
                 <label class="label">Invoice Amount ($ USD)</label>
-                <input type="number" step="0.01" min="1" id="invoiceAmount" value="4800.00" required />
+                <input type="number" step="0.01" min="1" id="invoiceAmount" value="250.00" required />
               </div>
               <div class="field">
                 <label class="label">Invoice Description / Memo</label>
@@ -690,6 +775,21 @@
                   <span class="mono" id="cbWebhookPreview" style="color:var(--brand-700)"></span>
                 </label>
                 <input type="password" id="cfgWebhook" placeholder="Paste your Checkbook Webhook Signing Key" />
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                <div class="field">
+                  <label class="label" for="cfgPerTxLimit">Per-Tx Limit ($)</label>
+                  <input type="number" id="cfgPerTxLimit" value="2000" min="1" step="100" />
+                </div>
+                <div class="field">
+                  <label class="label" for="cfgDailyLimit">Daily Limit ($)</label>
+                  <input type="number" id="cfgDailyLimit" value="2000" min="1" step="100" />
+                </div>
+                <div class="field">
+                  <label class="label" for="cfgMonthlyLimit">Monthly Limit ($)</label>
+                  <input type="number" id="cfgMonthlyLimit" value="15000" min="1" step="500" />
+                </div>
               </div>
 
               <div style="background:#F8FAFC;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:14px">
@@ -953,9 +1053,43 @@
       document.getElementById('kpiPayoutVol').textContent = '$' + payTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       document.getElementById('kpiPayoutSub').textContent = `${adminState.payouts.length} outbound payout(s)`;
 
+      // Populate Limits & Transaction Volumes Bar
+      const lv = adminState.limitsAndVolumes || {};
+      const fmtUsd = (n) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const ver = cfg.lastVerification || {};
+      const ownerBiz = ver.ownerBusinessName || 'Verified Checkbook Merchant';
+      const ownerBankStr = ver.ownerBankLast4 ? ` · Bank •••• ${ver.ownerBankLast4} (${ver.ownerBankStatus || 'VERIFIED'})` : '';
+      document.getElementById('ownerProfileSummary').textContent = `${ownerBiz} (${ver.ownerStatus || 'VERIFIED'})${ownerBankStr}`;
+
+      document.getElementById('volTotalInvoiced').textContent = fmtUsd(lv.totalInvoicedVolume !== undefined ? lv.totalInvoicedVolume : invTotal);
+      document.getElementById('volUnpaid').textContent = fmtUsd(lv.unpaidVolume || 0);
+      document.getElementById('volInProcess').textContent = fmtUsd(lv.inProcessVolume || 0);
+      document.getElementById('volPaid').textContent = fmtUsd(lv.paidVolume || 0);
+      document.getElementById('volPayouts').textContent = fmtUsd(lv.outboundPayoutsVolume !== undefined ? lv.outboundPayoutsVolume : payTotal);
+
+      const perTxLimit = Number(lv.perTxLimit || cfg.perTxLimit || 2000);
+      const dailyLimit = Number(lv.dailyLimit || cfg.dailyLimit || 2000);
+      const monthlyLimit = Number(lv.monthlyLimit || cfg.monthlyLimit || 15000);
+      const dailyUsed = Number(lv.dailyUsedVolume || 0);
+      const monthlyUsed = Number(lv.monthlyUsedVolume !== undefined ? lv.monthlyUsedVolume : (invTotal + payTotal));
+      const dailyRem = Math.max(0, dailyLimit - dailyUsed);
+      const monthlyRem = Math.max(0, monthlyLimit - monthlyUsed);
+      const dailyPct = dailyLimit > 0 ? Math.min(100, Number(((dailyUsed / dailyLimit) * 100).toFixed(1))) : 0;
+      const monthlyPct = monthlyLimit > 0 ? Math.min(100, Number(((monthlyUsed / monthlyLimit) * 100).toFixed(1))) : 0;
+
+      document.getElementById('limitPerTxVal').textContent = fmtUsd(perTxLimit);
+      document.getElementById('limitDailyRemText').textContent = `${fmtUsd(dailyRem)} Remaining`;
+      document.getElementById('limitDailyUsedVal').innerHTML = `${fmtUsd(dailyUsed)} <span style="font-size:12.5px;font-weight:500;color:var(--muted)">/ ${fmtUsd(dailyLimit)}</span>`;
+      document.getElementById('limitDailyPct').textContent = `${dailyPct}%`;
+      document.getElementById('limitDailyBar').style.width = `${dailyPct}%`;
+
+      document.getElementById('limitMonthlyRemText').textContent = `${fmtUsd(monthlyRem)} Remaining`;
+      document.getElementById('limitMonthlyUsedVal').innerHTML = `${fmtUsd(monthlyUsed)} <span style="font-size:12.5px;font-weight:500;color:var(--muted)">/ ${fmtUsd(monthlyLimit)}</span>`;
+      document.getElementById('limitMonthlyPct').textContent = `${monthlyPct}%`;
+      document.getElementById('limitMonthlyBar').style.width = `${monthlyPct}%`;
+
       const smtpConnected = Boolean(cfg.hasSmtpPass && cfg.smtpUser);
       const cbConnected = Boolean(cfg.hasLiveCheckbookKeys);
-      const ver = cfg.lastVerification || {};
 
       // Top KPI Integrations Card
       if (cbConnected && ver.apiConnected) {
@@ -1014,22 +1148,42 @@
         whText.textContent = 'Endpoint /webhook/checkbook is live. Paste your Checkbook Webhook Signing Key below to enable HMAC-SHA256 verification.';
       }
 
+      // Unverified Customer Selector Dropdown
+      const inviteSel = document.getElementById('inviteTargetSelect');
+      inviteSel.innerHTML = `<option value="CHECKED_OR_ALL">Checked Rows (or All ${pendingCusts.length} Unverified)</option>` +
+        `<option value="ALL_UNVERIFIED">All Unverified Customers (${pendingCusts.length})</option>` +
+        pendingCusts.map(c => `<option value="${c.id}">${c.businessName} (${c.email})</option>`).join('');
+
       // Customers Table
       const cBody = document.getElementById('customersTableBody');
       cBody.innerHTML = adminState.customers.length
-        ? adminState.customers.map(c => `
+        ? adminState.customers.map(c => {
+            const isVerified = c.bankStatus === 'VERIFIED';
+            const inviteBadge = c.lastInviteSentAt
+              ? `<span class="pill pill-green" style="margin-left:6px;padding:1px 7px;font-size:10px">✓ Invite Sent</span>`
+              : '';
+            return `
         <tr>
+          <td style="padding-right:4px">
+            ${isVerified
+              ? `<input type="checkbox" disabled style="width:15px;height:15px;opacity:.35" />`
+              : `<input type="checkbox" class="cust-invite-cb" value="${c.id}" checked onchange="updateSelectedUnverifiedCount()" style="width:15px;height:15px;cursor:pointer" />`}
+          </td>
           <td>
-            <div style="font-weight:600">${c.businessName}</div>
+            <div style="font-weight:600">${c.businessName}${inviteBadge}</div>
             <div class="micro">${c.email}</div>
           </td>
           <td><span class="mono">${c.user_id}</span></td>
           <td>${c.accountLast4 ? `${c.bankName || 'Bank'} •••• ${c.accountLast4}` : '<span class="micro">Unlinked (Needs Bank)</span>'}</td>
           <td>${badgeForStatus(c.bankStatus)}</td>
           <td style="text-align:right">
-            ${c.bankStatus === 'VERIFIED'
+            ${isVerified
               ? `<button class="btn btn-brand btn-sm" onclick="selectCustomerForInvoice('${c.id}')">Select for Auto-Debit</button>`
               : `<div class="row gap6" style="justify-content:flex-end">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="sendSingleVerificationInvite('${c.id}','${c.businessName.replace(/'/g, "\\'")}')">
+                    <svg width="11" height="11"><use href="#i-mail"/></svg>
+                    <span>Send Email</span>
+                  </button>
                   <button type="button" class="btn btn-secondary btn-sm" onclick="copyCustomerLink('${c.token}','${c.businessName.replace(/'/g, "\\'")}')">
                     <svg width="11" height="11"><use href="#i-copy"/></svg>
                     <span>Copy Link</span>
@@ -1037,9 +1191,13 @@
                   <a class="btn btn-brand btn-sm" href="/?token=${c.token}">Verify Bank &rarr;</a>
                 </div>`}
           </td>
-        </tr>
-      `).join('')
-        : `<tr><td colspan="5" class="micro" style="text-align:center;padding:22px">No customers yet. Click "Sync Checkbook" or "+ Onboard Customer".</td></tr>`;
+        </tr>`;
+          }).join('')
+        : `<tr><td colspan="6" class="micro" style="text-align:center;padding:22px">No customers yet. Click "Sync Checkbook" or "+ Onboard Customer".</td></tr>`;
+
+      const selectAllBox = document.getElementById('selectAllUnverified');
+      if (selectAllBox) selectAllBox.checked = pendingCusts.length > 0;
+      updateSelectedUnverifiedCount();
 
       // Verified customers dropdowns
       const invSel = document.getElementById('invoiceCustomerSelect');
@@ -1153,6 +1311,86 @@
       document.getElementById('cfgSmtpHost').value = cfg.smtpHost || 'smtp.gmail.com';
       document.getElementById('cfgSmtpPort').value = cfg.smtpPort || '587';
       document.getElementById('cfgSmtpUser').value = cfg.smtpUser || 'efugduhfr@gmail.com';
+      if (document.getElementById('cfgPerTxLimit')) document.getElementById('cfgPerTxLimit').value = cfg.perTxLimit || 2000;
+      if (document.getElementById('cfgDailyLimit')) document.getElementById('cfgDailyLimit').value = cfg.dailyLimit || 2000;
+      if (document.getElementById('cfgMonthlyLimit')) document.getElementById('cfgMonthlyLimit').value = cfg.monthlyLimit || 15000;
+    }
+
+    function toggleSelectAllUnverified(checked) {
+      document.querySelectorAll('.cust-invite-cb').forEach(cb => { cb.checked = checked; });
+      updateSelectedUnverifiedCount();
+    }
+
+    function updateSelectedUnverifiedCount() {
+      const checkedBoxes = Array.from(document.querySelectorAll('.cust-invite-cb:checked'));
+      const totalBoxes = Array.from(document.querySelectorAll('.cust-invite-cb'));
+      const lbl = document.getElementById('selectedUnverifiedCountLabel');
+      if (lbl) {
+        lbl.textContent = `${checkedBoxes.length} of ${totalBoxes.length} unverified selected`;
+      }
+      const btn = document.getElementById('btnSendVerificationInvites');
+      if (btn) {
+        btn.innerHTML = `<svg width="13" height="13"><use href="#i-mail"/></svg><span>Send Verification Link &amp; Memo (${checkedBoxes.length || totalBoxes.length})</span>`;
+      }
+    }
+
+    async function sendVerificationInvites() {
+      const selVal = document.getElementById('inviteTargetSelect').value;
+      const memo = document.getElementById('inviteMemoInput').value.trim();
+      let customerIds = [];
+      if (selVal === 'ALL_UNVERIFIED') {
+        customerIds = ['ALL_UNVERIFIED'];
+      } else if (selVal === 'CHECKED_OR_ALL') {
+        const checked = Array.from(document.querySelectorAll('.cust-invite-cb:checked')).map(cb => cb.value);
+        customerIds = checked.length > 0 ? checked : ['ALL_UNVERIFIED'];
+      } else {
+        customerIds = [selVal];
+      }
+
+      const btn = document.getElementById('btnSendVerificationInvites');
+      btn.disabled = true;
+      btn.innerHTML = `<span>Sending verification email(s)…</span>`;
+      try {
+        const res = await adminFetch('/api/admin/send-verification-invites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerIds,
+            memo,
+            origin: window.location.origin
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to send verification invites');
+        await loadAdminState();
+        showToast(data.message);
+      } catch (err) {
+        showToast(err.message, 'err');
+      } finally {
+        btn.disabled = false;
+        updateSelectedUnverifiedCount();
+      }
+    }
+
+    async function sendSingleVerificationInvite(customerId, bizName) {
+      const memo = document.getElementById('inviteMemoInput').value.trim();
+      try {
+        const res = await adminFetch('/api/admin/send-verification-invites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerIds: [customerId],
+            memo,
+            origin: window.location.origin
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to send verification email');
+        await loadAdminState();
+        showToast(`Verification link & memo emailed to ${bizName}.`);
+      } catch (err) {
+        showToast(err.message, 'err');
+      }
     }
 
     function selectCustomerForInvoice(id) {
@@ -1368,11 +1606,20 @@
       try {
         const payload = {
           brandName: document.getElementById('cfgBrand').value.trim() || 'Meridian Pay',
-          checkbookEnv: document.getElementById('cfgEnv').value
+          checkbookEnv: document.getElementById('cfgEnv').value,
+          perTxLimit: Number(document.getElementById('cfgPerTxLimit').value || 2000),
+          dailyLimit: Number(document.getElementById('cfgDailyLimit').value || 2000),
+          monthlyLimit: Number(document.getElementById('cfgMonthlyLimit').value || 15000)
         };
         if (document.getElementById('cfgCbKey').value.trim()) payload.checkbookKey = document.getElementById('cfgCbKey').value.trim();
         if (document.getElementById('cfgCbSecret').value.trim()) payload.checkbookSecret = document.getElementById('cfgCbSecret').value.trim();
         if (document.getElementById('cfgWebhook').value.trim()) payload.webhookSecret = document.getElementById('cfgWebhook').value.trim();
+
+        await adminFetch('/api/admin/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
         const res = await adminFetch('/api/admin/verify-checkbook', {
           method: 'POST',

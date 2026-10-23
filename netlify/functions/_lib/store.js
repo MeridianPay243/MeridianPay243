@@ -41,6 +41,10 @@ function defaultState() {
       checkbookKey: process.env.CHECKBOOK_KEY || '83447b4b75014b369b1c222212e4e970',
       checkbookSecret: process.env.CHECKBOOK_SECRET || 'FlP3uvKkIQKxkFu7yqxckuM5so2msX',
       webhookSecret: process.env.CHECKBOOK_WEBHOOK_SECRET || '4cf8b21747d545e3bf8f7eff119c86ba',
+      // Checkbook Account Payment Limits (Production Default: $2,000/tx, $2,000/day, $15,000/month)
+      perTxLimit: Number(process.env.PER_TX_LIMIT || 2000),
+      dailyLimit: Number(process.env.DAILY_LIMIT || 2000),
+      monthlyLimit: Number(process.env.MONTHLY_LIMIT || 15000),
       // Pre-configured Gmail SMTP (efugduhfr@gmail.com + 16-char App Password)
       smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
       smtpPort: process.env.SMTP_PORT || '587',
@@ -91,6 +95,10 @@ function loadState() {
   state.config.checkbookKey = state.config.checkbookKey || process.env.CHECKBOOK_KEY || '83447b4b75014b369b1c222212e4e970';
   state.config.checkbookSecret = state.config.checkbookSecret || process.env.CHECKBOOK_SECRET || 'FlP3uvKkIQKxkFu7yqxckuM5so2msX';
   state.config.webhookSecret = state.config.webhookSecret || process.env.CHECKBOOK_WEBHOOK_SECRET || '4cf8b21747d545e3bf8f7eff119c86ba';
+
+  state.config.perTxLimit = Number(state.config.perTxLimit || process.env.PER_TX_LIMIT || 2000);
+  state.config.dailyLimit = Number(state.config.dailyLimit || process.env.DAILY_LIMIT || 2000);
+  state.config.monthlyLimit = Number(state.config.monthlyLimit || process.env.MONTHLY_LIMIT || 15000);
 
   // Ensure Gmail SMTP is pre-filled and active by default
   state.config.smtpHost = state.config.smtpHost || process.env.SMTP_HOST || 'smtp.gmail.com';

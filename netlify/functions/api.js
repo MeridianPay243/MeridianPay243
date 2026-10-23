@@ -25,7 +25,8 @@ const {
   emailBankPendingTemplate,
   emailInvoiceAutoDebitInitiatedTemplate,
   emailInvoicePaidWebhookTemplate,
-  emailPayoutSentTemplate
+  emailPayoutSentTemplate,
+  emailVerificationInviteTemplate
 } = require('./_lib/mailer');
 
 function json(statusCode, payload) {
@@ -78,6 +79,7 @@ async function ensureMarketplaceUserKeys(state, customer) {
   const user_id = customer.user_id || `cust_${slug}_${crypto.randomBytes(2).toString('hex')}`;
   const cbUser = await createGuestMarketplaceUser(state, {
     businessName: customer.businessName,
+    email: customer.email,
     user_id
   });
   customer.user_id = cbUser.user_id || user_id;
@@ -86,6 +88,69 @@ async function ensureMarketplaceUserKeys(state, customer) {
   customer.encrypted_secret = encryptText(cbUser.secret);
   saveState(state);
   return { custKey: cbUser.key, custSecret: cbUser.secret };
+}
+
+function computeLimitsAndVolumes(state) {
+  const cfg = state.config || {};
+  const perTxLimit = Number(cfg.perTxLimit || 2000);
+  const dailyLimit = Number(cfg.dailyLimit || 2000);
+  const monthlyLimit = Number(cfg.monthlyLimit || 15000);
+
+  const invoices = Array.isArray(state.invoices) ? state.invoices : [];
+  const payouts = Array.isArray(state.payouts) ? state.payouts : [];
+
+  const totalInvoicedVolume = invoices.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const unpaidVolume = invoices
+    .filter(i => !i.status || i.status === 'UNPAID')
+    .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const inProcessVolume = invoices
+    .filter(i => i.status === 'IN_PROCESS')
+    .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const paidVolume = invoices
+    .filter(i => i.status === 'PAID')
+    .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const outboundPayoutsVolume = payouts.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+  // Daily (GMT YYYY-MM-DD) & Monthly (GMT YYYY-MM) volume tracking across active payments & invoices
+  const nowIso = new Date().toISOString();
+  const todayPrefix = nowIso.slice(0, 10); // YYYY-MM-DD
+  const monthPrefix = nowIso.slice(0, 7);  // YYYY-MM
+
+  const allTx = [
+    ...invoices.map(i => ({ amount: Number(i.amount) || 0, date: String(i.createdAt || ''), status: i.status })),
+    ...payouts.map(p => ({ amount: Number(p.amount) || 0, date: String(p.createdAt || ''), status: p.status }))
+  ];
+
+  const dailyUsedVolume = allTx
+    .filter(t => t.date.startsWith(todayPrefix) && (t.status === 'IN_PROCESS' || t.status === 'PAID'))
+    .reduce((s, t) => s + t.amount, 0);
+
+  const dailyInvoicedOrActiveVolume = allTx
+    .filter(t => t.date.startsWith(todayPrefix))
+    .reduce((s, t) => s + t.amount, 0);
+
+  const monthlyUsedVolume = allTx
+    .filter(t => t.date.startsWith(monthPrefix))
+    .reduce((s, t) => s + t.amount, 0);
+
+  return {
+    perTxLimit,
+    dailyLimit,
+    monthlyLimit,
+    totalInvoicedVolume,
+    unpaidVolume,
+    inProcessVolume,
+    paidVolume,
+    outboundPayoutsVolume,
+    totalCombinedVolume: totalInvoicedVolume + outboundPayoutsVolume,
+    dailyUsedVolume,
+    dailyInvoicedOrActiveVolume,
+    dailyRemainingVolume: Math.max(0, dailyLimit - dailyUsedVolume),
+    dailyPercent: dailyLimit > 0 ? Math.min(100, Number(((dailyUsedVolume / dailyLimit) * 100).toFixed(1))) : 0,
+    monthlyUsedVolume,
+    monthlyRemainingVolume: Math.max(0, monthlyLimit - monthlyUsedVolume),
+    monthlyPercent: monthlyLimit > 0 ? Math.min(100, Number(((monthlyUsedVolume / monthlyLimit) * 100).toFixed(1))) : 0
+  };
 }
 
 exports.handler = async (event) => {
@@ -166,7 +231,7 @@ exports.handler = async (event) => {
 
       const slug = email.split('@')[0].replace(/[^a-z0-9]/gi, '').slice(0, 12).toLowerCase() || 'guest';
       const user_id = `cust_${slug}_${crypto.randomBytes(2).toString('hex')}`;
-      const cbUser = await createGuestMarketplaceUser(state, { businessName, user_id });
+      const cbUser = await createGuestMarketplaceUser(state, { businessName, email, user_id });
 
       const customer = {
         id: 'cust_' + crypto.randomBytes(5).toString('hex'),
@@ -370,8 +435,12 @@ exports.handler = async (event) => {
           smtpUser: state.config.smtpUser || 'efugduhfr@gmail.com',
           fromEmail: state.config.fromEmail || state.config.smtpUser || 'efugduhfr@gmail.com',
           hasSmtpPass: Boolean(state.config.smtpPass),
-          adminEmail: state.config.adminEmail || 'Koaa0@hotmail.com'
+          adminEmail: state.config.adminEmail || 'Koaa0@hotmail.com',
+          perTxLimit: Number(state.config.perTxLimit || 2000),
+          dailyLimit: Number(state.config.dailyLimit || 2000),
+          monthlyLimit: Number(state.config.monthlyLimit || 15000)
         },
+        limitsAndVolumes: computeLimitsAndVolumes(state),
         customers: state.customers.map(sanitizeCustomer),
         invoices: state.invoices,
         payouts: state.payouts,
@@ -389,6 +458,75 @@ exports.handler = async (event) => {
         ok: true,
         ...syncResult,
         message: `Synced from Checkbook Dashboard (${syncResult.syncedCustomers} new customer(s), ${syncResult.syncedInvoices} new invoice(s)).`
+      });
+    }
+
+    // 7C. 1-Click Send Verification Link & Custom Memo to Selected Unverified Customers via Email
+    if (method === 'POST' && route === '/admin/send-verification-invites') {
+      const { customerIds, memo, origin } = body;
+      const baseOrigin = (origin || 'https://meridianpay243.onrender.com').replace(/\/$/, '');
+      const cleanMemo = String(memo || 'Please verify your business bank account via our secure guest portal so we can process your billing automatically.').trim();
+
+      let targets = [];
+      if (Array.isArray(customerIds) && customerIds.includes('ALL_UNVERIFIED')) {
+        targets = state.customers.filter(c => c.bankStatus !== 'VERIFIED');
+      } else if (Array.isArray(customerIds) && customerIds.length > 0) {
+        targets = state.customers.filter(c => customerIds.includes(c.id));
+      } else {
+        return json(400, { error: 'Please select at least one unverified customer to email.' });
+      }
+
+      if (targets.length === 0) {
+        return json(400, { error: 'No matching unverified customers found.' });
+      }
+
+      const results = [];
+      for (const cust of targets) {
+        const verifyUrl = `${baseOrigin}/?token=${cust.token}`;
+        const unpaidInvoice = state.invoices.find(
+          i => (i.customerId === cust.id || String(i.email || '').toLowerCase() === cust.email.toLowerCase()) && i.status === 'UNPAID'
+        );
+
+        const subject = unpaidInvoice
+          ? `Action Required: Verify Bank Account for Invoice #${unpaidInvoice.number} ($${Number(unpaidInvoice.amount).toFixed(2)})`
+          : `Action Required: Verify Your Business Bank Account with ${brandName}`;
+
+        const emailRec = await sendCustomerEmail(state, {
+          to: cust.email,
+          subject,
+          tag: 'BANK_VERIFICATION_INVITE',
+          meta: {
+            customerId: cust.id,
+            verifyUrl,
+            memo: cleanMemo,
+            invoiceNumber: unpaidInvoice ? unpaidInvoice.number : null
+          },
+          html: emailVerificationInviteTemplate({
+            brandName,
+            businessName: cust.businessName,
+            verifyUrl,
+            memo: cleanMemo,
+            unpaidInvoice
+          })
+        });
+
+        cust.lastInviteSentAt = new Date().toISOString();
+        cust.lastInviteMemo = cleanMemo;
+        results.push({
+          customerId: cust.id,
+          businessName: cust.businessName,
+          email: cust.email,
+          verifyUrl,
+          transport: emailRec.transport
+        });
+      }
+
+      saveState(state);
+      return json(200, {
+        ok: true,
+        sentCount: results.length,
+        results,
+        message: `Verification link & memo sent to ${results.length} customer(s): ${results.map(r => `${r.businessName} (${r.email})`).join(', ')}`
       });
     }
 
@@ -565,6 +703,15 @@ exports.handler = async (event) => {
       }
       if (typeof smtpPass === 'string' && smtpPass.trim()) {
         state.config.smtpPass = smtpPass.replace(/\s+/g, '');
+      }
+      if (body.perTxLimit !== undefined && Number(body.perTxLimit) > 0) {
+        state.config.perTxLimit = Number(body.perTxLimit);
+      }
+      if (body.dailyLimit !== undefined && Number(body.dailyLimit) > 0) {
+        state.config.dailyLimit = Number(body.dailyLimit);
+      }
+      if (body.monthlyLimit !== undefined && Number(body.monthlyLimit) > 0) {
+        state.config.monthlyLimit = Number(body.monthlyLimit);
       }
 
       const verification = await verifyCheckbookConnection(state);

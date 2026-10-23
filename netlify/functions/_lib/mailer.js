@@ -232,11 +232,55 @@ function emailPayoutSentTemplate({ brandName, recipientName, amount, description
   </div>`;
 }
 
+function emailVerificationInviteTemplate({ brandName, businessName, verifyUrl, memo, unpaidInvoice }) {
+  const invoiceBlock = unpaidInvoice
+    ? `<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="color:#667085">Pending Invoice Reference:</span>
+          <strong>#${unpaidInvoice.number} ($${Number(unpaidInvoice.amount).toFixed(2)} USD)</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="color:#667085">Description:</span>
+          <span>${unpaidInvoice.description || 'Commercial Billing'}</span>
+        </div>
+      </div>`
+    : '';
+
+  const memoBlock = memo
+    ? `<div style="background:#E7F6F0;border:1px solid #BFE6D5;border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:13.5px;color:#065B3F;line-height:1.5">
+        <strong>Message from ${brandName}:</strong><br/>${memo}
+      </div>`
+    : '';
+
+  return `
+  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:28px;border:1px solid #E4E7EC;border-radius:14px;background:#FFFFFF;color:#0F172A">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #F1F5F9">
+      <strong style="font-size:16px;color:#0A1220">${brandName}</strong>
+      <span style="font-size:11px;font-weight:700;color:#0B8F63;background:#E7F6F0;padding:4px 10px;border-radius:999px">GUEST BANK VERIFICATION</span>
+    </div>
+    <h2 style="margin:0 0 8px;font-size:20px">Action Required: Verify Your Business Bank Account</h2>
+    <p style="margin:0 0 16px;font-size:14px;color:#475467;line-height:1.55">
+      Hi <strong>${businessName}</strong>, please complete your one-time guest bank verification with <strong>${brandName}</strong>. You can verify instantly via Online Banking or with Routing &amp; Account Micro-Deposits — no account creation or password required.
+    </p>
+    ${memoBlock}
+    ${invoiceBlock}
+    <div style="margin:20px 0">
+      <a href="${verifyUrl}" style="display:inline-block;background:#0B8F63;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;padding:12px 22px;border-radius:9px">
+        Verify Bank Account as Guest &rarr;
+      </a>
+    </div>
+    <p style="margin:16px 0 0;font-size:12px;color:#667085;border-top:1px solid #EAECF0;padding-top:14px">
+      Sent by <strong>${brandName}</strong> &middot; Direct Verification Link: <a href="${verifyUrl}" style="color:#0B8F63">${verifyUrl}</a>
+    </p>
+  </div>`;
+}
+
 module.exports = {
   sendCustomerEmail,
   verifyAndSendTestEmail,
   emailBankPendingTemplate,
   emailInvoiceAutoDebitInitiatedTemplate,
   emailInvoicePaidWebhookTemplate,
-  emailPayoutSentTemplate
+  emailPayoutSentTemplate,
+  emailVerificationInviteTemplate
 };
