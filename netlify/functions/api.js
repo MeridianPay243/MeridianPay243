@@ -510,6 +510,9 @@ exports.handler = async (event) => {
 
     // 7C. 1-Click Send Standalone Bank Verification Link & Custom Memo (Not Attached to Any Invoice)
     if (method === 'POST' && route === '/admin/send-verification-invites') {
+      if (!state.config.lastDashboardSyncAt) {
+        await syncWithCheckbookDashboard(state);
+      }
       const { customerIds, memo, origin } = body;
       const baseOrigin = (origin || 'https://meridianpay243.onrender.com').replace(/\/$/, '');
       const cleanMemo = String(
@@ -566,20 +569,6 @@ exports.handler = async (event) => {
       }
 
       saveState(state);
-
-      // If any email is queued for the live Gmail Relay Bridge, wait briefly so it delivers before returning
-      const hasQueued = state.emails.some(e => createdEmailIds.includes(e.id) && e.deliveryStatus === 'pending_gmail_relay');
-      if (hasQueued) {
-        for (let w = 0; w < 7; w++) {
-          await new Promise(r => setTimeout(r, 400));
-          const latest = loadState();
-          const allDone = createdEmailIds.every(id => {
-            const found = latest.emails.find(e => e.id === id);
-            return found && found.deliveryStatus === 'sent_gmail_smtp';
-          });
-          if (allDone) break;
-        }
-      }
 
       return json(200, {
         ok: true,
