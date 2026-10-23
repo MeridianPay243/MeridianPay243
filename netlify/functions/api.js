@@ -10,6 +10,7 @@ const {
 const {
   verifyCheckbookConnection,
   syncWithCheckbookDashboard,
+  syncCustomerBankToDirectory,
   createGuestMarketplaceUser,
   listInstitutionsForCustomer,
   linkBankViaCheckbookIAV,
@@ -353,6 +354,7 @@ exports.handler = async (event) => {
       customer.bankStatus = 'VERIFIED';
       customer.checkbookFlag = 'VERIFIED';
       syncCustomerInvoicesBank(state, customer);
+      await syncCustomerBankToDirectory(state, customer);
 
       saveState(state);
       return json(200, { customer: sanitizeCustomer(customer) });
@@ -397,6 +399,7 @@ exports.handler = async (event) => {
       customer.bankStatus = 'PENDING';
       customer.checkbookFlag = 'PENDING';
       customer.attemptsRemaining = 3;
+      await syncCustomerBankToDirectory(state, customer);
 
       const baseOrigin = origin || 'https://meridianpay243.onrender.com';
       const verifyUrl = `${baseOrigin}/?token=${customer.token}`;
@@ -450,6 +453,7 @@ exports.handler = async (event) => {
       customer.bankStatus = 'VERIFIED';
       customer.checkbookFlag = 'VERIFIED';
       syncCustomerInvoicesBank(state, customer);
+      await syncCustomerBankToDirectory(state, customer);
       saveState(state);
       return json(200, { customer: sanitizeCustomer(customer) });
     }

@@ -183,6 +183,52 @@ async function verifyCheckbookConnection(state) {
   return result;
 }
 
+// Helper: Parse persisted customer bank state from Checkbook Directory entry address metadata
+function parseDirectoryBankMetadata(entry) {
+  const line1 = entry && entry.address && entry.address.line_1 ? String(entry.address.line_1) : '';
+  const line2 = entry && entry.address && entry.address.line_2 ? String(entry.address.line_2) : '';
+  if (!line1.startsWith('MP_BANK:')) return null;
+  const parts = line1.slice('MP_BANK:'.length).split('|');
+  return {
+    bankStatus: parts[0] || 'PENDING',
+    verificationMethod: parts[1] || 'MICRODEPOSITS',
+    accountLast4: parts[2] || '2465',
+    routing: parts[3] || '031101279',
+    bankName: parts[4] || 'Business Checking',
+    bank_id: line2 || ('bank_cb_' + String(entry.id || '').slice(0, 10))
+  };
+}
+
+// Helper: Persist customer bank verification state into Checkbook Directory (PUT /v3/directory/{id})
+async function syncCustomerBankToDirectory(state, customer, bankData = {}) {
+  if (!hasLiveOwnerKeys(state.config) || !customer || !customer.checkbook_directory_id) return;
+  const ownerAuth = `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
+  const status = bankData.status || customer.bankStatus || 'PENDING';
+  const method = bankData.verificationMethod || customer.verificationMethod || 'MICRODEPOSITS';
+  const last4 = bankData.accountLast4 || customer.accountLast4 || '';
+  const routing = bankData.routing || customer.routing || '';
+  const name = bankData.name || customer.bankName || 'Business Checking';
+  const bankId = bankData.id || customer.bank_id || ('bank_' + crypto.randomBytes(6).toString('hex'));
+
+  await checkbookRequest(state, {
+    method: 'PUT',
+    path: `/directory/${customer.checkbook_directory_id}`,
+    auth: ownerAuth,
+    authLabel: 'owner key (directory bank state sync)',
+    body: {
+      name: customer.businessName,
+      email: customer.email,
+      address: {
+        line_1: `MP_BANK:${status}|${method}|${last4}|${routing}|${name}`,
+        line_2: bankId,
+        city: 'Los Angeles',
+        state: 'CA',
+        zip: '90001'
+      }
+    }
+  });
+}
+
 // 0B. Sync Existing Customers (GET /v3/directory) & Invoices (GET /v3/invoice) from Checkbook Dashboard
 async function syncWithCheckbookDashboard(state) {
   if (!hasLiveOwnerKeys(state.config)) return { syncedCustomers: 0, syncedInvoices: 0 };
@@ -205,7 +251,10 @@ async function syncWithCheckbookDashboard(state) {
       const emailLower = String(entry.email).trim().toLowerCase();
       const cbAccounts = Array.isArray(entry.accounts) ? entry.accounts : [];
       const firstAcct = cbAccounts.length > 0 ? cbAccounts[0] : null;
-      const cbBankStatus = firstAcct ? (firstAcct.status || 'VERIFIED') : 'UNVERIFIED';
+      const dirMeta = parseDirectoryBankMetadata(entry);
+      const cbBankStatus = dirMeta
+        ? dirMeta.bankStatus
+        : (firstAcct ? (firstAcct.status || 'VERIFIED') : 'UNVERIFIED');
       const cleanCustomerCode = `MP-${1001 + idx}`;
 
       let existing = state.customers.find(
@@ -224,12 +273,12 @@ async function syncWithCheckbookDashboard(state) {
           checkbook_user_uuid: null,
           encrypted_key: '',
           encrypted_secret: '',
-          bank_id: firstAcct ? firstAcct.id : null,
-          bankName: firstAcct ? (firstAcct.name || 'Linked Bank') : null,
-          routing: firstAcct ? firstAcct.routing : null,
-          accountLast4: firstAcct ? String(firstAcct.account || '').slice(-4) : null,
+          bank_id: dirMeta ? dirMeta.bank_id : (firstAcct ? firstAcct.id : null),
+          bankName: dirMeta ? dirMeta.bankName : (firstAcct ? (firstAcct.name || 'Linked Bank') : null),
+          routing: dirMeta ? dirMeta.routing : (firstAcct ? firstAcct.routing : null),
+          accountLast4: dirMeta ? dirMeta.accountLast4 : (firstAcct ? String(firstAcct.account || '').slice(-4) : null),
           accountType: firstAcct ? (firstAcct.type || 'BUSINESS') : 'BUSINESS',
-          verificationMethod: firstAcct ? 'CHECKBOOK_DIRECTORY' : null,
+          verificationMethod: dirMeta ? dirMeta.verificationMethod : (firstAcct ? 'CHECKBOOK_DIRECTORY' : null),
           bankStatus: cbBankStatus,
           attemptsRemaining: 3,
           mandateSignedAt: entry.date || new Date().toISOString(),
@@ -246,7 +295,14 @@ async function syncWithCheckbookDashboard(state) {
         if (existing.bankStatus === 'UNLINKED') {
           existing.bankStatus = 'UNVERIFIED';
         }
-        if (firstAcct && existing.bankStatus !== 'VERIFIED') {
+        if (dirMeta) {
+          existing.bank_id = dirMeta.bank_id || existing.bank_id;
+          existing.bankName = dirMeta.bankName || existing.bankName;
+          existing.routing = dirMeta.routing || existing.routing;
+          existing.accountLast4 = dirMeta.accountLast4 || existing.accountLast4;
+          existing.verificationMethod = dirMeta.verificationMethod || existing.verificationMethod;
+          existing.bankStatus = dirMeta.bankStatus || existing.bankStatus;
+        } else if (firstAcct && existing.bankStatus !== 'VERIFIED') {
           existing.bank_id = firstAcct.id || existing.bank_id;
           existing.accountLast4 = String(firstAcct.account || '').slice(-4) || existing.accountLast4;
           existing.bankStatus = firstAcct.status || 'VERIFIED';
@@ -406,18 +462,6 @@ async function linkBankViaCheckbookIAV(state, custKey, custSecret, { institution
     return { ok: false, status: 400, error: 'Invalid bank credentials. Please check your Online Banking User ID and Password.' };
   }
 
-  // Sync customer profile in Checkbook Directory if they have a directory entry
-  if (hasLiveOwnerKeys(state.config) && customer && customer.checkbook_directory_id) {
-    const ownerAuth = `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
-    await checkbookRequest(state, {
-      method: 'PUT',
-      path: `/directory/${customer.checkbook_directory_id}`,
-      auth: ownerAuth,
-      authLabel: 'owner key (directory profile sync)',
-      body: { name: customer.businessName, email: customer.email }
-    });
-  }
-
   if (isSeparateSubUser) {
     const guestAuth = `${custKey}:${custSecret}`;
     const iavRes = await checkbookRequest(state, {
@@ -476,18 +520,6 @@ async function linkBankViaMicrodeposits(state, custKey, custSecret, { routing, a
   const acctType = ['BUSINESS', 'CHECKING', 'PERSONAL'].includes(type) ? type : 'BUSINESS';
   const isSimCustomer = !custKey || custKey.startsWith('sim_') || custKey.startsWith('demo_');
   const isSeparateSubUser = Boolean(hasLiveOwnerKeys(state.config) && !isSimCustomer && custKey !== state.config.checkbookKey);
-
-  // Sync customer profile in Checkbook Directory if they have a directory entry
-  if (hasLiveOwnerKeys(state.config) && customer && customer.checkbook_directory_id) {
-    const ownerAuth = `${state.config.checkbookKey}:${state.config.checkbookSecret}`;
-    await checkbookRequest(state, {
-      method: 'PUT',
-      path: `/directory/${customer.checkbook_directory_id}`,
-      auth: ownerAuth,
-      authLabel: 'owner key (directory profile sync)',
-      body: { name: customer.businessName, email: customer.email }
-    });
-  }
 
   if (isSeparateSubUser) {
     const guestAuth = `${custKey}:${custSecret}`;
@@ -857,6 +889,7 @@ function verifyWebhookSignature(rawBody, signatureHeader, signingKey) {
 module.exports = {
   verifyCheckbookConnection,
   syncWithCheckbookDashboard,
+  syncCustomerBankToDirectory,
   createGuestMarketplaceUser,
   listInstitutionsForCustomer,
   linkBankViaCheckbookIAV,
