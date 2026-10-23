@@ -34,9 +34,9 @@ async function sendCustomerEmail(state, { to, subject, html, tag, meta }) {
         port,
         secure: port === 465,
         family: 4,
-        connectionTimeout: 7000,
-        greetingTimeout: 7000,
-        socketTimeout: 10000,
+        connectionTimeout: 3500,
+        greetingTimeout: 3500,
+        socketTimeout: 6000,
         auth: { user, pass }
       });
       await transporter.sendMail({
@@ -95,13 +95,20 @@ async function verifyAndSendTestEmail(state, testRecipient) {
     port,
     secure: port === 465,
     family: 4,
-    connectionTimeout: 7000,
-    greetingTimeout: 7000,
-    socketTimeout: 10000,
+    connectionTimeout: 4500,
+    greetingTimeout: 4500,
+    socketTimeout: 7000,
     auth: { user, pass }
   });
 
-  await transporter.verify();
+  try {
+    await transporter.verify();
+  } catch (err) {
+    if (err && (err.code === 'ETIMEDOUT' || err.code === 'ESOCKET' || /timeout/i.test(err.message))) {
+      throw new Error(`Gmail credentials (${user}) are saved, but this cloud host blocked outbound TCP port ${port} (Render Free tier blocks ports 25/465/587; Vercel/Netlify allow port 587 on free tier).`);
+    }
+    throw err;
+  }
 
   const recipient = (testRecipient || user).trim();
   const subject = `${brandName} — Gmail SMTP Live Connection Verified`;
