@@ -181,11 +181,13 @@
       .invite-bar-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 720px) {
+      html, body { overflow-x: hidden; }
       .wrap { padding: 0 14px; }
       .topbar { height: auto; padding: 10px 0; }
-      .topbar .wrap { flex-wrap: wrap; gap: 8px; }
-      .navtabs { width: 100%; order: 3; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
-      .navtab { white-space: nowrap; padding: 6px 10px; font-size: 11px; min-width: unset; }
+      .topbar .wrap { flex-wrap: wrap; gap: 8px; overflow: visible; }
+      .navtabs { width: 100%; order: 3; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; display: flex; scrollbar-width: none; -ms-overflow-style: none; }
+      .navtabs::-webkit-scrollbar { display: none; }
+      .navtab { white-space: normal; padding: 6px 10px; font-size: 11px; min-width: unset; flex: 0 0 auto; }
       .kpi-grid { grid-template-columns: 1fr; gap: 10px; }
       .card-pad { padding: 16px 14px; }
       input, select { font-size: 16px; }
